@@ -1,0 +1,75 @@
+```{r}
+library(tidyverse)
+library(cancensus)
+library(knitr)
+library(readr)
+library(sf)
+library(geojsonsf)
+```
+
+### Loading census using API key
+#### First we load our api key and create our vector of columns we would like to extract
+```{r}
+load("API_KEY.rda")
+
+options(cancensus.api_key = api_key)
+options(cancensus.cache_path = "cache")
+
+vectors <- c("v_CA21_1",
+             "v_CA21_6",
+             "v_CA21_449",
+             "v_CA21_1040",
+             "v_CA21_1085",
+             "v_CA21_905")
+```
+#### Get the dataset and save to file. Clear api key out of global env. THIS DATA CONTAINS SF INFO FOR CENSUS!!!!
+```{r}
+census_data <- get_census(dataset = "CA21",
+                     regions = list(CMA="59933"),
+                     vectors = vectors,
+                     labels = "detailed",
+                     geo_format = "sf",
+                     level = "DA")
+
+can_api_key <- ""
+save(census_data, file = "data/census.rda")
+```
+
+```{r}
+glimpse(census_data)
+```
+
+
+### Loading other datasets , renaming and standardizing columns
+```{r}
+food <- read_delim("data/vancouver_food_programs.csv", delim=';') %>% 
+  select("Program Name", "Program Status", "Meal Cost", "Local Areas", "Latitude", "Longitude") %>%
+  drop_na("Latitude", "Longitude")
+
+crime <- read_csv("data/crime_data_all_neighborhoods.csv")
+
+# convert column headings to standardized format
+colnames(food) <- gsub("\\.", "_", tolower(make.names(colnames(food))))
+colnames(crime) <- tolower(make.names(colnames(crime)))
+
+# create lat/long vector for crime data
+crime <- crime %>%
+  mutate(geom = paste0(x, ", ", y))
+
+head(food)
+head(crime)
+```
+## Here we create a new column in both of our datasets, which represent the "shapefiles" for the location of the entries. We will use the shapeifiles to allow us to compare between the someone needs to write this lol
+```{r}
+# crs information from https://natural-resources.canada.ca/maps-tools-and-publications/geodetic-reference-systems/canadian-spatial-reference-system-csrs/9052
+food <- food %>%
+  st_as_sf(coords = c("latitude", "longitude"), crs = 26910)
+
+crime <- crime %>%
+  st_as_sf(coords = c("x", "y"), crs = 26910)
+
+head(food)
+head(crime)
+```
+
+
