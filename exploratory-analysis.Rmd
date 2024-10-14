@@ -25,11 +25,12 @@ vectors <- c("v_CA21_1",
 #### Get the dataset and save to file. Clear api key out of global env. THIS DATA CONTAINS SF INFO FOR CENSUS!!!!
 ```{r}
 census_data <- get_census(dataset = "CA21",
-                     regions = list(CMA="59933"),
-                     vectors = vectors,
-                     labels = "detailed",
-                     geo_format = "sf",
-                     level = "DA")
+                          regions = list(CSD = "5915022", 
+                                         DA = c("59154012","59154105","59154090","59150936","59154101","59154104","59154035","59154103","59154102","59154034","59150945","59154091","59154093","59154099","59150946","59154100","59154078","59154079","59154082","59154081","59154080","59150939","59150938","59154083","59154095","59154084","59150941","59150942","59154085","59154088","59154087","59154089","59154097","59154098","59154096","59154092","59154013","59150952")),
+                          vectors = vectors,
+                          labels = "detailed",
+                          geo_format = "sf",
+                          level = "DA")
 
 can_api_key <- ""
 save(census_data, file = "data/census.rda")
@@ -63,23 +64,29 @@ food_data <- st_read("data/free-and-low-cost-food-programs.shp")  %>%
   st_set_crs(4326)
 
 head(food_data)
+head(food_data$geometry)
 ```
 ```{r}
 crime <- read_csv("data/crime_data_all_neighborhoods.csv")
 colnames(crime) <- tolower(make.names(colnames(crime)))
 
 head(crime)
+# now we mutate crime data to add shapefile information
+# first we create as a utm shapefile due to the data structure, 
+# then convert to lat/long like census_data and food_data
+# crs = 32610 : utm 10
+# crs = 4326 : lat/long WGS84
+crime_data <- crime %>%
+  st_as_sf(coords = c("x", "y"), crs = 32610) %>%
+  st_transform(crs = 4326)
 
-# # create lat/long vector for crime data
-# crime_data <- crime %>%
-#   mutate(geom = paste0(x, ", ", y))
-# 
-# # now we mutate crime data to add shapefile information
-# # set to wgs 84 as per can census
-# crime_data <- crime_data %>%
-#   st_as_sf(coords = c("x", "y"), crs = 4326)
-# 
-# head(crime_data)
+# we need to remove (0,0) values for plotting as they cause errors on the axis
+# to do that we extract coords then filter where the Y component == 0
+crime_coords <- st_coordinates(crime_data)
+crime_data <- crime_data[crime_coords[,2] != 0, ]
+
+head(crime_data)
+head(st_geometry(crime_data))
 ```
 ### Shapefile distance calculations
 ```{r}
@@ -87,16 +94,26 @@ head(crime)
 census_geom <- st_geometry(census_data)
 census_centroids <- st_centroid(census_geom)
 
+distance_food <- st_distance(census_centroids, food_data)
+
 intersections_food <- st_intersects(census_data, food_data, sparse = FALSE)
 intersections_food_500 <- st_is_within_distance(census_data, food_data, sparse = FALSE, dist = 500)
 food_contained <- rowSums(intersections_food, dims = 1)
 food_within_500 <- rowSums(intersections_food_500, dims = 1)
 
+mean(food_contained)
 mean(food_within_500)
-
 ```
+#### this cell takes a long time to run, idk why right now so avoid running it, all other calcs work independent
+
 ```{r}
-st_read(crime_data)
+distance_crime <- st_distance(census_centroids, crime_data)
+```
+
+
+
+```{r}
+# example statistics from jonathon
 
 intersections_crime <- st_intersects(census_data, crime_data, sparse = FALSE)
 intersections_crime_500 <- st_is_within_distance(census_data, crime_data, sparse = FALSE, dist = 500)
@@ -105,9 +122,14 @@ crime_within_500 <- rowSums(intersections_crime_500, dims = 1)
 
 
 mean(crime_contained)
+mean(crime_within_500)
 ```
 ```{r}
-# CRIME LOADING NOT WORKING!!!
+can_map <- ggplot() +
+  geom_sf(data = census_data, color = "blue") +  
+  theme_minimal() +
+  labs(title = "census data mapping",) +
+  theme(legend.position = "bottom")
 
 crime_map <- ggplot() +
   geom_sf(data = crime_data, aes(color = type)) +  
@@ -122,79 +144,26 @@ food_map <- ggplot() +
   theme_minimal() +
   labs(title = "Food center mapping")
 
-food_no_sf_map <- ggplot() +
-  geom_sf(data = food$geometry, color = "yellow") +  # Specify fill color or variable if needed
-  theme_minimal() +
-  labs(title = "Food center NO SF mapping")
-
+can_map
 crime_map
 food_map
-food_no_sf_map
 ```
 ```{r}
-#stackexchange solution credit
-
-# Get bounding box for food_data
-bbox_food <- st_bbox(food_data)
-
-# Get bounding box for crime_data
-bbox_crime <- st_bbox(crime_data)
-
-# Print the bounding boxes
-print(bbox_food)
-print(bbox_crime)
-
-# EXtract bounds
-# For food_data
-min_x_food <- bbox_food["xmin"]
-max_x_food <- bbox_food["xmax"]
-min_y_food <- bbox_food["ymin"]
-max_y_food <- bbox_food["ymax"]
-
-# For crime_data
-min_x_crime <- bbox_crime["xmin"]
-max_x_crime <- bbox_crime["xmax"]
-min_y_crime <- bbox_crime["ymin"]
-max_y_crime <- bbox_crime["ymax"]
-
-```
-```{r}
-
-# Get bounding box values for plotting limits
-bbox_food <- st_bbox(food_data)
-bbox_crime <- st_bbox(crime_data)
-
-# Set plotting limits based on the bounding boxes
-ggplot() +
-  geom_sf(data = food_data, aes(fill = "Food Programs"), color = "black") + 
-  geom_sf(data = crime_data, aes(color = type), size = 1) + 
-  coord_sf(xlim = c(bbox_food["xmin"], bbox_food["xmax"]), 
-           ylim = c(bbox_food["ymin"], bbox_food["ymax"])) + 
-  labs(title = "Food Programs and Crime Data") +
+combo_plot <- ggplot() +
+  geom_sf(data = census_data, color = "black") +
+  geom_sf(data = crime_data, aes(color = "geometry"), size = 0.4, alpha = 0.2) +
+  geom_sf(data = food_data, aes(fill = "yellow"), color = "black", size = 2, alpha = 0.8, shape = 21) +
+  coord_sf() + 
+  labs(title = "Free and Low Cost Food Programs plotted against Crime, Vancouver") +
   theme_minimal() +
-  theme(legend.position = "bottom")
+  theme(legend.position = "right") +
+  scale_fill_manual(name = "", values = "yellow", labels = c("Food Programs")) +
+  scale_color_manual(name = "", values = "red", labels = c("Crime")) +
+  # increase point size for legend only
+  guides(fill = guide_legend(override.aes = list(size = 5)),
+         color = guide_legend(override.aes = list(size = 5, alpha = 0.5)))
 
-
-```
-```{r}
-bbox_crime <- st_bbox(crime_data)
-print(bbox_crime)
-```
-```{r}
-ggplot() +
-  geom_sf(data = food_data, aes(fill = "Food Programs"), color = "black") + 
-  geom_sf(data = crime_data, aes(color = type), size = 1) + 
-  coord_sf() +  # Do not set xlim and ylim
-  labs(title = "Food Programs and Crime Data") +
-  theme_minimal() +
-  theme(legend.position = "bottom")
-
-```
-
-```{r}
-# Check a summary of the coordinates of crime_data
-print(head(st_coordinates(crime_data)))
-
+combo_plot
 ```
 
 
