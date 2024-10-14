@@ -5,6 +5,7 @@ library(knitr)
 library(readr)
 library(sf)
 library(geojsonsf)
+library(paletteer)
 ```
 
 ### Loading census using API key
@@ -45,16 +46,6 @@ head(census_data)
 
 ### Loading other datasets , renaming and standardizing columns
 
-```{r}
-food <- read_delim("data/vancouver_food_programs.csv", delim=';') %>% 
-  select("Program Name", "Program Status", "Meal Cost", "Local Areas", "Latitude", "Longitude") %>%
-  drop_na("Latitude", "Longitude")
-
-colnames(food) <- gsub("\\.", "_", tolower(make.names(colnames(food))))
-food <- food %>%
-  st_as_sf(coords = c("latitude", "longitude"), crs = 4326)
-```
-
 
 ```{r}
 food_data <- st_read("data/free-and-low-cost-food-programs.shp")  %>%
@@ -90,7 +81,6 @@ head(st_geometry(crime_data))
 ```
 ### Shapefile distance calculations
 ```{r}
-
 census_geom <- st_geometry(census_data)
 census_centroids <- st_centroid(census_geom)
 
@@ -104,7 +94,7 @@ food_within_500 <- rowSums(intersections_food_500, dims = 1)
 mean(food_contained)
 mean(food_within_500)
 ```
-#### this cell takes a long time to run, idk why right now so avoid running it, all other calcs work independent
+#### this cell takes a long time to run, idk why right now so avoid running it, all other calcs work independent (it does finish running though)
 
 ```{r}
 distance_crime <- st_distance(census_centroids, crime_data)
@@ -124,23 +114,37 @@ crime_within_500 <- rowSums(intersections_crime_500, dims = 1)
 mean(crime_contained)
 mean(crime_within_500)
 ```
+
+### Visualizing our data
 ```{r}
 can_map <- ggplot() +
   geom_sf(data = census_data, color = "blue") +  
   theme_minimal() +
-  labs(title = "census data mapping",) +
-  theme(legend.position = "bottom")
+  labs(title = "Census data mapping",)
 
 crime_map <- ggplot() +
-  geom_sf(data = crime_data, aes(color = type)) +  
+  geom_sf(data = crime_data,
+          aes(color = type),
+          alpha = 0.8,
+          size = 0.5,
+          fill = "white") +  
   theme_minimal() +
   labs(title = "Crime data mapping",
        fill = "Legend", 
        color = "Crime Type") +
-  theme(legend.position = "bottom")
+  theme(legend.position = "right") +
+  scale_color_paletteer_d("ggthemes::Classic_Purple_Gray_12")
+
+# some extra themes
+# c1 <- crime_map + scale_color_paletteer_d("ggprism::autumn_leaves")
+# c2 <- crime_map + scale_color_paletteer_d("beyonce::X70")
+# c3 <- crime_map + scale_color_paletteer_d("impressionist.colors::te_aa_no_areois")
+# c4 <- crime_map + scale_color_paletteer_d("ggthemes::Classic_Purple_Gray_12")
+
 
 food_map <- ggplot() +
-  geom_sf(data = food_data, color = "blue") +  # Specify fill color or variable if needed
+  geom_sf(data = food_data,
+          color = "blue") +
   theme_minimal() +
   labs(title = "Food center mapping")
 
@@ -148,6 +152,7 @@ can_map
 crime_map
 food_map
 ```
+
 ```{r}
 combo_plot <- ggplot() +
   geom_sf(data = census_data, color = "black") +
