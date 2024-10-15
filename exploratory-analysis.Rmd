@@ -9,7 +9,9 @@ library(paletteer)
 ```
 
 ### Loading census using API key
+
 #### First we load our api key and create our vector of columns we would like to extract
+
 ```{r}
 load("API_KEY.rda")
 
@@ -23,15 +25,60 @@ vectors <- c("v_CA21_1",
              "v_CA21_1085",
              "v_CA21_905")
 ```
+
 #### Get the dataset and save to file. Clear api key out of global env. THIS DATA CONTAINS SF INFO FOR CENSUS!!!!
+
 ```{r}
-census_data <- get_census(dataset = "CA21",
-                          regions = list(CSD = "5915022", 
-                                         DA = c("59154012","59154105","59154090","59150936","59154101","59154104","59154035","59154103","59154102","59154034","59150945","59154091","59154093","59154099","59150946","59154100","59154078","59154079","59154082","59154081","59154080","59150939","59150938","59154083","59154095","59154084","59150941","59150942","59154085","59154088","59154087","59154089","59154097","59154098","59154096","59154092","59154013","59150952")),
-                          vectors = vectors,
-                          labels = "detailed",
-                          geo_format = "sf",
-                          level = "DA")
+census_data <- get_census(
+  dataset = "CA21",
+  regions = list(
+    CSD = "5915022",
+    DA = c(
+      "59154012",
+      "59154105",
+      "59154090",
+      "59150936",
+      "59154101",
+      "59154104",
+      "59154035",
+      "59154103",
+      "59154102",
+      "59154034",
+      "59150945",
+      "59154091",
+      "59154093",
+      "59154099",
+      "59150946",
+      "59154100",
+      "59154078",
+      "59154079",
+      "59154082",
+      "59154081",
+      "59154080",
+      "59150939",
+      "59150938",
+      "59154083",
+      "59154095",
+      "59154084",
+      "59150941",
+      "59150942",
+      "59154085",
+      "59154088",
+      "59154087",
+      "59154089",
+      "59154097",
+      "59154098",
+      "59154096",
+      "59154092",
+      "59154013",
+      "59150952"
+    )
+  ),
+  vectors = vectors,
+  labels = "detailed",
+  geo_format = "sf",
+  level = "DA"
+)
 
 can_api_key <- ""
 save(census_data, file = "data/census.rda")
@@ -43,13 +90,19 @@ head(census_data)
 
 ### (note)Then we have to load other data, transform , add sf info, then merge into dataset and add comparison functions
 
-
 ### Loading other datasets , renaming and standardizing columns
-
 
 ```{r}
 food_data <- st_read("data/free-and-low-cost-food-programs.shp")  %>%
-  select("program_nam", "program_sta", "meal_cost", "local_areas", "latitude", "longitude", "geometry") %>%
+  select(
+    "program_nam",
+    "program_sta",
+    "meal_cost",
+    "local_areas",
+    "latitude",
+    "longitude",
+    "geometry"
+  ) %>%
   drop_na("latitude", "longitude") %>%
   # set to wgs 84 as per can census
   st_set_crs(4326)
@@ -57,13 +110,14 @@ food_data <- st_read("data/free-and-low-cost-food-programs.shp")  %>%
 head(food_data)
 head(food_data$geometry)
 ```
+
 ```{r}
 crime <- read_csv("data/crime_data_all_neighborhoods.csv")
 colnames(crime) <- tolower(make.names(colnames(crime)))
 
 head(crime)
 # now we mutate crime data to add shapefile information
-# first we create as a utm shapefile due to the data structure, 
+# first we create as a utm shapefile due to the data structure,
 # then convert to lat/long like census_data and food_data
 # crs = 32610 : utm 10
 # crs = 4326 : lat/long WGS84
@@ -74,13 +128,16 @@ crime_data <- crime %>%
 # we need to remove (0,0) values for plotting as they cause errors on the axis
 # to do that we extract coords then filter where the Y component == 0
 crime_coords <- st_coordinates(crime_data)
-crime_data <- crime_data[crime_coords[,2] != 0, ]
+crime_data <- crime_data[crime_coords[, 2] != 0, ]
 
 head(crime_data)
 head(st_geometry(crime_data))
 ```
+
 ### Shapefile distance calculations
+
 ```{r}
+# example statistics from jonathon
 census_geom <- st_geometry(census_data)
 census_centroids <- st_centroid(census_geom)
 
@@ -94,17 +151,14 @@ food_within_500 <- rowSums(intersections_food_500, dims = 1)
 mean(food_contained)
 mean(food_within_500)
 ```
+
 #### this cell takes a long time to run, idk why right now so avoid running it, all other calcs work independent (it does finish running though)
 
 ```{r}
 distance_crime <- st_distance(census_centroids, crime_data)
 ```
 
-
-
 ```{r}
-# example statistics from jonathon
-
 intersections_crime <- st_intersects(census_data, crime_data, sparse = FALSE)
 intersections_crime_500 <- st_is_within_distance(census_data, crime_data, sparse = FALSE, dist = 500)
 crime_contained <- rowSums(intersections_crime, dims = 1)
@@ -116,35 +170,36 @@ mean(crime_within_500)
 ```
 
 ### Visualizing our data
+
 ```{r}
 can_map <- ggplot() +
-  geom_sf(data = census_data, color = "blue") +  
+  geom_sf(data = census_data, color = "blue") +
   theme_minimal() +
-  labs(title = "Census data mapping",)
+  labs(title = "Census data mapping", )
 
 crime_map <- ggplot() +
-  geom_sf(data = crime_data,
-          aes(color = type),
-          alpha = 0.8,
-          size = 0.5,
-          fill = "white") +  
+  geom_sf(
+    data = crime_data,
+    aes(color = type),
+    alpha = 0.8,
+    size = 0.5,
+    fill = "white"
+  ) +
   theme_minimal() +
   labs(title = "Crime data mapping",
-       fill = "Legend", 
+       fill = "Legend",
        color = "Crime Type") +
   theme(legend.position = "right") +
   scale_color_paletteer_d("ggthemes::Classic_Purple_Gray_12")
 
 # some extra themes
-# c1 <- crime_map + scale_color_paletteer_d("ggprism::autumn_leaves")
-# c2 <- crime_map + scale_color_paletteer_d("beyonce::X70")
-# c3 <- crime_map + scale_color_paletteer_d("impressionist.colors::te_aa_no_areois")
-# c4 <- crime_map + scale_color_paletteer_d("ggthemes::Classic_Purple_Gray_12")
-
+# scale_color_paletteer_d("ggprism::autumn_leaves")
+# scale_color_paletteer_d("beyonce::X70")
+# scale_color_paletteer_d("impressionist.colors::te_aa_no_areois")
+# scale_color_paletteer_d("ggthemes::Classic_Purple_Gray_12")
 
 food_map <- ggplot() +
-  geom_sf(data = food_data,
-          color = "blue") +
+  geom_sf(data = food_data, color = "blue") +
   theme_minimal() +
   labs(title = "Food center mapping")
 
@@ -156,20 +211,35 @@ food_map
 ```{r}
 combo_plot <- ggplot() +
   geom_sf(data = census_data, color = "black") +
-  geom_sf(data = crime_data, aes(color = "geometry"), size = 0.4, alpha = 0.2) +
-  geom_sf(data = food_data, aes(fill = "yellow"), color = "black", size = 2, alpha = 0.8, shape = 21) +
-  coord_sf() + 
+  geom_sf(
+    data = crime_data,
+    aes(color = "geometry"),
+    size = 0.4,
+    alpha = 0.2
+  ) +
+  geom_sf(
+    data = food_data,
+    aes(fill = "yellow"),
+    color = "black",
+    size = 2,
+    alpha = 0.8,
+    shape = 21
+  ) +
+  coord_sf() +
   labs(title = "Free and Low Cost Food Programs plotted against Crime, Vancouver") +
   theme_minimal() +
   theme(legend.position = "right") +
-  scale_fill_manual(name = "", values = "yellow", labels = c("Food Programs")) +
-  scale_color_manual(name = "", values = "red", labels = c("Crime")) +
+  scale_fill_manual(
+    name = "",
+    values = "yellow",
+    labels = c("Food Programs")
+  ) +
+  scale_color_manual(name = "",
+                     values = "red",
+                     labels = c("Crime")) +
   # increase point size for legend only
   guides(fill = guide_legend(override.aes = list(size = 5)),
          color = guide_legend(override.aes = list(size = 5, alpha = 0.5)))
 
 combo_plot
 ```
-
-
-
