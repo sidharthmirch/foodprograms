@@ -209,7 +209,7 @@ food_map
 ```
 
 ```{r}
-combo_plot <- ggplot() +
+crime_food_plot <- ggplot() +
   geom_sf(data = census_data, color = "black") +
   geom_sf(
     data = crime_data,
@@ -241,5 +241,114 @@ combo_plot <- ggplot() +
   guides(fill = guide_legend(override.aes = list(size = 5)),
          color = guide_legend(override.aes = list(size = 5, alpha = 0.5)))
 
-combo_plot
+crime_food_plot
+```
+
+```{r}
+lim_at_plot <- ggplot() +
+  geom_sf(
+    data = census_data,
+    aes(fill = `v_CA21_1040: Prevalence of low income based on the Low-income measure, after tax (LIM-AT) (%)`),
+    color = "black",
+    size = 0.2
+  ) +
+  scale_fill_paletteer_c("viridis::viridis", 
+                         name = "Low Income (%)",
+                         limits = c(0, 100)) +
+  labs(title = "Prevalence of low income based on the Low-income measure, after tax") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+lim_at_plot 
+
+lico_at_plot <- ggplot() +
+  geom_sf(
+    data = census_data,
+    aes(fill = `v_CA21_1085: Prevalence of low income based on the Low-income cut-offs, after tax (LICO-AT) (%)`),
+    color = "black",
+    size = 0.2
+  ) +
+  scale_fill_paletteer_c("viridis::viridis", 
+                         name = "Low Income (%)",
+                         limits = c(0, 100)) +
+  labs(title = "Prevalence of low income based on the Low-income cut-offs, after tax") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+lico_at_plot
+```
+
+```{r}
+lim_crime_food_plot <- ggplot() +
+  # lim-at + can map from census data
+  geom_sf(
+    data = census_data,
+    aes(fill = `v_CA21_1040: Prevalence of low income based on the Low-income measure, after tax (LIM-AT) (%)`),
+    color = "black",
+    size = 0.2
+  ) +
+  # crime mapping
+  geom_sf(
+    data = crime_data,
+    color = "red",
+    size = 0.3,
+    alpha = 0.2
+  ) +
+  geom_sf(
+    data = food_data,
+    fill = "yellow",
+    color = "black",
+    size = 2,
+    alpha = 0.8,
+    shape = 21
+  ) +
+  # lim-at gradient
+  scale_fill_paletteer_c("viridis::viridis", 
+                         name = "Low Income (%)",
+                         limits = c(0, 100)) +
+  labs(title = "Low Income Prevalence + Crime and Food Centers (LIM-AT)") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+
+lim_crime_food_plot                              
+```
+
+```{r}
+lico_crime_food_plot <- ggplot() +
+  # Low income measure (LIM-AT) as a continuous fill
+  geom_sf(
+    data = census_data,
+    aes(fill = `v_CA21_1085: Prevalence of low income based on the Low-income cut-offs, after tax (LICO-AT) (%)`),
+    color = "black",
+    size = 0.2
+  ) +
+  # Crime data, set color to red without aes (not mapped)
+  geom_sf(
+    data = crime_data,
+    color = "red",
+    size = 0.2,
+    alpha = 0.2
+  ) +
+  # Food programs, set fill to yellow without aes (not mapped)
+  geom_sf(
+    data = food_data,
+    fill = "yellow",   # Fixed yellow fill
+    color = "black",
+    size = 2,
+    alpha = 0.8,
+    shape = 21
+  ) +
+  # Viridis scale for continuous data
+  scale_fill_paletteer_c("viridis::viridis", 
+                         name = "Low Income (%)",
+                         limits = c(0, 100)) +
+  labs(title = "Low Income Prevalence + Crime and Food Centers (LICO-AT)") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+#TODO: legends for food center
+
+
+lico_crime_food_plot  
 ```
