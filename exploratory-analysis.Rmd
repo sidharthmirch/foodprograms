@@ -335,7 +335,7 @@ lico_crime_food_plot <- ggplot() +
     data = food_data,
     fill = "yellow",   # Fixed yellow fill
     color = "black",
-    size = 3,
+    size = 2,
     alpha = 0.8,
     shape = 21
   ) +
