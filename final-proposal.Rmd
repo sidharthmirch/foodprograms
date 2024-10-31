@@ -174,8 +174,8 @@ Here we take a look at crime type with the most occurrences in each neighbourhoo
 ```{r}
 summary_crime_type_n <- crime_data %>%
   group_by(neighbourhood, type) %>%
-  summarise(occurrence = n(), .groups = 'drop') %>%
-  arrange(neighbourhood, desc(occurrence)) %>%
+  summarise(count = n(), .groups = 'drop') %>%
+  arrange(neighbourhood, desc(count)) %>%
   group_by(neighbourhood) %>%                     
   slice(1) %>%                                      
   ungroup()
@@ -186,8 +186,8 @@ print(summary_crime_type_n)
 
 ```{r}
 crime_type_n <- ggplot(summary_crime_type_n, 
-                       aes(x = reorder(neighbourhood, -occurrence), 
-                           y = occurrence, fill = type)) +
+                       aes(x = reorder(neighbourhood, -count), 
+                           y = count, fill = type)) +
   geom_bar(stat = "identity") +
   coord_flip() +
   labs(title = "Most Common Crime in Each Neighborhood",
