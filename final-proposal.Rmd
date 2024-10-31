@@ -1,0 +1,204 @@
+### Deliverables
+
+Submit a 1-2 page outline of your proposed research project including:
+
+-   A clear statement of which track you will be following
+-   A concise and clear research statement of your project, including a research question
+    -   Tip: refer to the rubric for the final project when writing your question -A description of the data set you will be using for your project
+    -   Tip: refer to the rubric for the final project when writing about the data
+-   A list of variables from your dataset you will using in your analysis with a short (1-2 sentences) justification for their use
+-   A table with summary statistics including the mean, standard deviation, max, and for each variable.
+    -   If a variable is qualitative, make sure you include it as a set of dummies in this table.
+-   A proposed regression model you want to use, including an equation. A short justification (2-4 sentences) is suitable.
+    -   Tip: refer to the rubric for the final project when writing about the model
+
+# TODOS:
+
+-   Figure out the scale of each variable, that is:
+
+    -   is population stored in thousands, hundreds, etc
+
+    -   how do we quantify the mean of "v_CA21_449: Number of persons in private households"? is it per DA?
+
+    -   same for v_CA21_905
+
+-   Check if mean density numbers look correct, no idea if units are converted correctly right now
+
+# 1 Research Statement
+
+# 2 Variables
+
+# 3 Summary Statistics
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(paletteer)
+```
+
+## 3.1 Census Data
+
+First we generate tables of summary statistics for the census variables we are considering.
+
+```{r}
+vectors <- c("v_CA21_1", "v_CA21_6", "v_CA21_449", "v_CA21_1040", "v_CA21_1085", "v_CA21_905")
+
+summary_statistics_census <- list()
+combo_statistics_census <- data.frame()
+
+# create summary table for every vector in census data
+# sources for manipulating through the list:
+# https://stackoverflow.com/a/25839767
+# https://stackoverflow.com/a/75671893
+
+for (vector in vectors) {
+  summary_table <- census_data %>%
+    select(matches(vector)) %>%
+    pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
+    filter(!is.na(value)) %>%
+    summarize(
+      mean = mean(value, na.rm = TRUE),
+      sd = sd(value, na.rm = TRUE),
+      max = max(value, na.rm = TRUE),
+      min = min(value, na.rm = TRUE),
+      .groups = "drop") %>%
+    mutate(variable = vector) %>%
+    select(variable, everything())
+  
+  summary_statistics_census[[vector]] <- summary_table
+  
+  combo_statistics_census <- rbind(combo_statistics_census, summary_table)
+}
+
+print(combo_statistics_census)
+```
+
+### 3.1.1 v_CA21_1: Population, 2021
+
+```{r}
+summary_statistics_census[["v_CA21_1"]]
+```
+
+### 3.1.2 v_CA21_6: Population density per square kilometre
+
+```{r}
+summary_statistics_census[["v_CA21_6"]]
+```
+
+### 3.1.3 v_CA21_449: Number of persons in private households
+
+```{r}
+summary_statistics_census[["v_CA21_449"]]
+```
+
+### 3.1.4 v_CA21_1040: Prevalence of low income based on the Low-income measure, after tax (LIM-AT) (%)
+
+```{r}
+summary_statistics_census[["v_CA21_1040"]]
+```
+
+### 3.1.5 v_CA21_1085: Prevalence of low income based on the Low-income cut-offs, after tax (LICO-AT) (%)
+
+```{r}
+summary_statistics_census[["v_CA21_1085"]]
+```
+
+### 3.1.6 v_CA21_905: Income statistics for private households
+
+```{r}
+summary_statistics_census[["v_CA21_905"]]
+```
+
+## 3.2 Free and Low Cost Food Programs
+
+Next we look at our food program data-set to create summaries. The table that we have generated represents the number
+
+```{r}
+food_count <- food_data %>%
+  group_by(local_areas) %>%
+  summarise(count = n(), .groups = "drop")
+
+combo_crime_food <- census_data %>%
+  st_join(food_count, left = TRUE) %>% 
+  mutate(program_count = replace_na(count, 0),
+         area = st_area(geometry),
+         density = program_count / (area * 1e-6))
+
+summary_statistics_food <- combo_crime_food %>%
+  select(local_areas, program_count, density) %>%
+  group_by(local_areas) %>%
+  summarise(program_count = sum(program_count),
+            mean_density = mean(density, na.rm = TRUE),
+            .groups = "drop")
+
+print(summary_statistics_food)
+```
+
+## 3.3 Crime Data
+
+For our crime data we are only considering the number of crimes. To do so we group crimes by Neighborhood, and then calculate the count of crimes for each group. Using `sf` and the boundaries from the Census data we are able to calculate the density of crime per square kilometer, and finally create our summary statistics for crime in Vancouver.
+
+```{r}
+# combine census and crime data to get census boundaries for area calculations
+combo_crime_census <- st_join(census_data, crime_data)
+
+summary_statistics_crime <- combo_crime_census %>%
+  group_by(neighbourhood) %>%
+  reframe(count = n(),
+          area = st_area(geometry),
+          mean_crime_density = count / (area * 1e-6)) %>%
+  group_by(neighbourhood) %>%
+  summarise(total_crimes = first(count),
+            mean_crime_density = mean(mean_crime_density)) %>%                            
+  ungroup() 
+
+summary_statistics_crime
+```
+
+### 3.3.1 Crime Type
+
+```{r}
+summary_crime_type <- crime_data %>%
+  group_by(type) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+# Display the result
+print(summary_crime_type)
+```
+
+### 3.3.2 Crime by Neighbourhood
+
+Here we take a look at crime type with the most occurrences in each neighbourhood.
+
+```{r}
+summary_crime_type_n <- crime_data %>%
+  group_by(neighbourhood, type) %>%
+  summarise(occurrence = n(), .groups = 'drop') %>%
+  arrange(neighbourhood, desc(occurrence)) %>%
+  group_by(neighbourhood) %>%                     
+  slice(1) %>%                                      
+  ungroup()
+
+# Display the result
+print(summary_crime_type_n)
+```
+
+```{r}
+crime_type_n <- ggplot(summary_crime_type_n, 
+                       aes(x = reorder(neighbourhood, -occurrence), 
+                           y = occurrence, fill = type)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Most Common Crime in Each Neighborhood",
+       x = "Neighborhood",
+       y = "Number of Occurrences",
+       fill = "Crime Type") +
+  theme_minimal() +
+  theme(legend.position = "right") +
+  scale_fill_paletteer_d("ggthemes::Classic_Purple_Gray_12")
+
+plot(crime_type_n)
+```
+
+# 4. Model
