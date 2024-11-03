@@ -34,6 +34,7 @@ Submit a 1-2 page outline of your proposed research project including:
 library(tidyverse)
 library(dplyr)
 library(paletteer)
+library(sf)
 ```
 
 ## 3.1 Census Data
@@ -115,16 +116,23 @@ Next we look at our food program data-set to create summaries. The table that we
 
 ```{r}
 food_count <- food_data %>%
+  st_set_geometry(NULL) %>% 
   group_by(local_areas) %>%
   summarise(count = n(), .groups = "drop")
 
-combo_crime_food <- census_data %>%
-  st_join(food_count, left = TRUE) %>% 
-  mutate(program_count = replace_na(count, 0),
-         area = st_area(geometry),
-         density = program_count / (area * 1e-6))
+food_data_count <- food_data %>%
+  left_join(food_count, by = "local_areas") %>%
+  distinct(local_areas, .keep_all = TRUE) # one row per neighbourhood
 
-summary_statistics_food <- combo_crime_food %>%
+combo_food_census <- census_data %>%
+  st_join(food_data_count)
+
+combo_food_census <- combo_food_census %>%
+ mutate(program_count = replace_na(count, 0),
+        area = st_area(geometry),
+        density = program_count / (area * 1e-6))
+
+summary_statistics_food <- combo_food_census %>%
   select(local_areas, program_count, density) %>%
   group_by(local_areas) %>%
   summarise(program_count = sum(program_count),
