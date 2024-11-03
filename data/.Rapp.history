@@ -1,0 +1,2 @@
+load("/Users/hajraojha/Documents/GitHub/foodprograms/data/census.rda")
+census_data
