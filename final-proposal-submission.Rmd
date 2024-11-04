@@ -1,0 +1,332 @@
+---
+title: "Final Proposal (Group 14) - Advanced Track"
+author: "Anishka Fernandopulle, Radhika Iyer, Sidharth Mirchandani, Hajra Ojha"
+output:
+  html_document: 
+    theme: cerulean
+    df_print: kable
+  word_document: default
+  pdf_document: 
+    fig_width: 5
+    fig_height: 4
+    fig_caption: true
+---
+
+```{r, results='hide',message=FALSE, echo=FALSE}
+library(tidyverse)
+library(cancensus)
+library(knitr)
+library(readr)
+library(sf)
+library(geojsonsf)
+library(paletteer)
+library(kableExtra)
+
+options(knitr.kable.NA = 'NA')
+
+load("API_KEY.rda")
+
+options(cancensus.api_key = api_key)
+options(cancensus.cache_path = "cache")
+
+vectors <- c("v_CA21_1",
+             "v_CA21_6",
+             "v_CA21_449",
+             "v_CA21_1040",
+             "v_CA21_1085",
+             "v_CA21_905")
+
+census_data <- get_census(
+  dataset = "CA21",
+  regions = list(
+    CSD = "5915022",
+    DA = c(
+      "59154012",
+      "59154105",
+      "59154090",
+      "59150936",
+      "59154101",
+      "59154104",
+      "59154035",
+      "59154103",
+      "59154102",
+      "59154034",
+      "59150945",
+      "59154091",
+      "59154093",
+      "59154099",
+      "59150946",
+      "59154100",
+      "59154078",
+      "59154079",
+      "59154082",
+      "59154081",
+      "59154080",
+      "59150939",
+      "59150938",
+      "59154083",
+      "59154095",
+      "59154084",
+      "59150941",
+      "59150942",
+      "59154085",
+      "59154088",
+      "59154087",
+      "59154089",
+      "59154097",
+      "59154098",
+      "59154096",
+      "59154092",
+      "59154013",
+      "59150952"
+    )
+  ),
+  vectors = vectors,
+  labels = "detailed",
+  geo_format = "sf",
+  level = "DA"
+)
+
+can_api_key <- ""
+save(census_data, file = "data/census.rda")
+
+food_data <- st_read("data/free-and-low-cost-food-programs.shp")  %>%
+  select(
+    "program_nam",
+    "program_sta",
+    "meal_cost",
+    "local_areas",
+    "latitude",
+    "longitude",
+    "geometry"
+  ) %>%
+  drop_na("latitude", "longitude") %>%
+  # set to wgs 84 as per can census
+  st_set_crs(4326)
+
+head(food_data)
+head(food_data$geometry)
+
+crime <- read_csv("data/crime_data_all_neighborhoods.csv")
+colnames(crime) <- tolower(make.names(colnames(crime)))
+
+head(crime)
+# now we mutate crime data to add shapefile information
+# first we create as a utm shapefile due to the data structure,
+# then convert to lat/long like census_data and food_data
+# crs = 32610 : utm 10
+# crs = 4326 : lat/long WGS84
+crime_data <- crime %>%
+  st_as_sf(coords = c("x", "y"), crs = 32610) %>%
+  st_transform(crs = 4326)
+
+# we need to remove (0,0) values for plotting as they cause errors on the axis
+# to do that we extract coords then filter where the Y component == 0
+crime_coords <- st_coordinates(crime_data)
+crime_data <- crime_data[crime_coords[, 2] != 0, ]
+
+census_geom <- st_geometry(census_data)
+census_centroids <- st_centroid(census_geom)
+
+distance_food <- st_distance(census_centroids, food_data)
+
+intersections_food <- st_intersects(census_data, food_data, sparse = FALSE)
+intersections_food_500 <- st_is_within_distance(census_data, food_data, sparse = FALSE, dist = 500)
+food_contained <- rowSums(intersections_food, dims = 1)
+food_within_500 <- rowSums(intersections_food_500, dims = 1)
+
+
+
+
+intersections_crime <- st_intersects(census_data, crime_data, sparse = FALSE)
+intersections_crime_500 <- st_is_within_distance(census_data, crime_data, sparse = FALSE, dist = 500)
+crime_contained <- rowSums(intersections_crime, dims = 1)
+crime_within_500 <- rowSums(intersections_crime_500, dims = 1)
+
+
+
+
+vectors <- c("v_CA21_1", "v_CA21_6", "v_CA21_449", "v_CA21_1040", "v_CA21_1085", "v_CA21_905")
+
+summary_statistics_census <- list()
+combo_statistics_census <- data.frame()
+
+# create summary table for every vector in census data
+# sources for manipulating through the list:
+# https://stackoverflow.com/a/25839767
+# https://stackoverflow.com/a/75671893
+
+for (vector in vectors) {
+  summary_table <- census_data %>%
+    st_drop_geometry() %>%  # Removes geometry column
+    select(matches(vector)) %>%
+    pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
+    filter(!is.na(value)) %>%
+    summarize(
+      mean = mean(value, na.rm = TRUE),
+      sd = sd(value, na.rm = TRUE),
+      max = max(value, na.rm = TRUE),
+      min = min(value, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    mutate(variable = vector) %>%
+    select(variable, everything())
+  
+  summary_statistics_census[[vector]] <- summary_table
+  
+  combo_statistics_census <- rbind(combo_statistics_census, summary_table)
+}
+
+food_count <- food_data %>%
+  st_set_geometry(NULL) %>% 
+  group_by(local_areas) %>%
+  summarise(count = n(), .groups = "drop")
+
+food_data_count <- food_data %>%
+  left_join(food_count, by = "local_areas") %>%
+  distinct(local_areas, .keep_all = TRUE) # one row per neighbourhood
+
+combo_food_census <- census_data %>%
+  st_join(food_data_count)
+
+combo_food_census <- combo_food_census %>%
+ mutate(program_count = replace_na(count, 0),
+        area = st_area(geometry),
+        density = program_count / (area * 1e-6))
+
+summary_statistics_food <- combo_food_census %>%
+  select(local_areas, program_count, density) %>%
+  group_by(local_areas) %>%
+  summarise(
+    count = sum(program_count, na.rm = TRUE),
+    mean = mean(density, na.rm = TRUE),
+    sd = sd(density, na.rm = TRUE),
+    max = max(density, na.rm = TRUE),
+    min = min(density, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  select(-geometry, -count, local_areas, mean, sd, max, min)%>%
+  st_set_geometry(NULL)
+
+combo_crime_census <- st_join(census_data, crime_data)
+
+summary_statistics_crime <- combo_crime_census %>%
+  group_by(neighbourhood) %>%
+  reframe(
+    count = n(),
+    area = st_area(geometry),
+    crime_density = count / (area * 1e-6)  # Convert area to square kilometers
+  ) %>%
+  group_by(neighbourhood) %>%
+  summarise(
+    total_crimes = first(count),
+    mean = mean(crime_density, na.rm = TRUE),
+    sd = sd(crime_density, na.rm = TRUE),
+    max = max(crime_density, na.rm = TRUE),
+    min = min(crime_density, na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  select(neighbourhood, mean, sd, max, min)
+```
+
+## Research Question
+
+How does the density of free and low-cost food programs influence property and violent crime density in low-income communities in Vancouver?
+
+## Variables
+
+### Canadian Census, 2021
+
+We will be using the 2021 Canadian census data-set to obtain the Population Density, Household Size, and Low-Income Density of neighborhoods in Vancouver. Then, we aim to establish a relationship between these factors and the crime rate within those specific communities. We will be considering the following variables:
+
+-   Population, 2021: v_CA21_1
+
+    -   This will provide us with a sample population to aid us in answering our research question. This numeric variable gives us quantitative values for the number of people within our sample along with population data specific to our chosen year. This enables us to make clearer comparisons.
+
+-   Population density per square kilometer: v_CA21_6
+
+    -   This will allow us to separate the population into specific locations to see the density within each neighborhood and provide context behind the crime rates in the area. It will also help us specifically pinpoint the locations of low-cost food programs. Based on population density some areas may experience different social dynamics that could influence crime. The unit for this variable represents the number of people.
+
+-   Number of persons in private households: v_CA21_449
+
+    -   This variable consists of quantitative data about the household composition which may influence access to food as well as the crime rate. This can also provide a brief estimate of income brackets within the neighborhood to pinpoint which locations consist of low-income earners who might need low-income food plans. Larger households might have different needs that may impact their food security as well as the crime rate.
+
+-   Prevalence of low income based on the Low-income measure, after tax (LIM-AT)(%): v_CA21_1040
+
+    -   This variable provides an indication of household financial vulnerability that helps examine a relationship between low income, access to food, and the crime rate. The data is represented in the form of percentages in a given area and is a relative measure in relation to median income.
+
+-   Prevalence of low income based on the Low-income based on the Low-income cut-offs, after tax (LICO-AT)(%): v_CA21_1085
+
+    -   This variable is a key indicator of financial strain that highlights the need for food programs as it takes into account living costs. It allows us to target areas where food insecurity may be high and food programs would be most likely needed. This is an absolute measure where the units are given in the form of percentages.
+
+-   Income statistics for private households: v_CA21_905
+
+    -   This variable will help identify low-income households to better understand the relationship between crime rates and low-income households. It provides information about income/earning levels.
+
+### Free and Low Cost Food Programs, Vancouver
+
+From the Free and Low-Cost Food Programs data-set, we will be considering the following variables:
+
+-   Neighborhood the facility is located: local_areas
+
+    -   This displays the geographical distribution of food programs that can be geographically matched with crime rate locations to study the relationship between the two.
+
+-   Latitude and Longitude of facility: geom
+
+    -   This provides a more specific location of each neighborhood we are studying, increasing the accuracy of our findings. This provides more detailed data to analyze the proximity to crime incidents. We can analyze the proximity of crime occurrence to food program locations. It is given in terms of coordinates.
+
+-   Is the facility operational: program_status
+
+    -   This determines the availability of food resources to understand if the issue of food security is dealt with. This allows us to isolate the effect. Within this variable data is either ‘open’ or ‘closed’ allowing us to disregard ‘closed’ food programs as they do not contribute to solving food insecurity.
+
+The data-set contains the location of free/low-cost food programs, food banks, grocery hampers, low-cost groceries, or grocery vouchers in Vancouver. These are valuable specifications of the low-food programs to better understand the reason for their location.
+
+### Vancouver Police Department Crime Data, 2021
+
+For the VPD Crime data-set, we intend to calculate the total number of crimes committed in 2021. The location specifications can be matched with food program locations to better study their relationship through spatial analysis. We will be transforming the location data stored in the X and Y columns to match Census Dissemination Areas. To do this, we will be converting from the projection format of the crime data, to that of the census. We will then be calculating the density of crime within each dissemination area. By converting the location data to be projected the same way, we can compare across all three of our data-sets.
+
+## Summary Statistics
+
+First we look at the summary statistics for our selected census variables:
+
+```{r}
+kable(combo_statistics_census)
+```
+
+Here we find the summary statistics for free and low-cost food centers:
+
+```{r}
+kable(summary_statistics_food)
+```
+
+Finally, we have the summary statistics for our crime data-set:
+
+```{r}
+kable(summary_statistics_crime)
+```
+
+## Model
+
+To answer this research question, we will use a multiple linear regression model that explores the relationship between food program density and crime rates in low-income communities, with the equation:
+
+$$
+(\text{Crime Density})_i = \beta_0+\beta_1(\text{Food Program Density}\cdot\text{Low Income})_i+\beta_2(\text{Food Program Density})_i+ \\ \beta_3(\text{Population Density})_i + \beta_4(Private Households)_i + \beta_5(Low Income)_i + \epsilon_i
+$$
+
+In this regression equation, the dependent variable $\text{Crime Density}_i$ represents the density of crimes per area for each census dissemination area. Our key parameter of interest is $\beta_1$ which is the interaction term that allows us to isolate the effect of food programs within low-income neighbourhoods only, by multiplying $\text{Food Program Density}_i$ which measures the density of free or low-cost food programs in the area by the dummy variable $\text{Low Income}_i$ which takes on the value 0 or 1 depending on whether we classify it as a low-income neighbourhood. The covariates are $\text{Food Program Density}_i$, $\text{Population Density}_i$, $\text{Private Households}_i$, and $\text{Low Income}_i$, which are variables that may influence crime in a neighbourhood on their own. Including these covariates allows us to isolate the effect of food program density on crime density in low income areas by controlling these variables. The parameter $\beta_0$ is the intercept, which represents the expected value of the crime density when the independent variables are equal to zero. The other parameters, $\beta_i$, where $i \neq 0$, represents the change in the crime density for a one-unit increase in each variable, holding the other variables constant. This model assumes that the factors influence crime density independently and that the relationships are linear.
+
+## Works Cited
+
+1.  “Census Data 2021.”, CensusMapper, 2021,
+
+    <https://censusmapper.ca/api/CA21.>
+
+2.  “Free and Low Cost Food Programs.” Open Data Portal, City of Vancouver, 2021,
+
+    <https://opendata.vancouver.ca/explore/dataset/free-and-low-cost-food-programs/information/.>
+
+3.  “GeoDASH Crime Map.”,
+
+    <https://geodash.vpd.ca/opendata/.>
+
+\
