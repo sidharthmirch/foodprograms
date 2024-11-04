@@ -54,6 +54,7 @@ combo_statistics_census <- data.frame()
 
 for (vector in vectors) {
   summary_table <- census_data %>%
+    st_drop_geometry() %>%  # Removes geometry column
     select(matches(vector)) %>%
     pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
     filter(!is.na(value)) %>%
@@ -62,7 +63,8 @@ for (vector in vectors) {
       sd = sd(value, na.rm = TRUE),
       max = max(value, na.rm = TRUE),
       min = min(value, na.rm = TRUE),
-      .groups = "drop") %>%
+      .groups = "drop"
+    ) %>%
     mutate(variable = vector) %>%
     select(variable, everything())
   
@@ -70,6 +72,7 @@ for (vector in vectors) {
   
   combo_statistics_census <- rbind(combo_statistics_census, summary_table)
 }
+
 
 print(combo_statistics_census)
 ```
@@ -135,11 +138,16 @@ combo_food_census <- combo_food_census %>%
 summary_statistics_food <- combo_food_census %>%
   select(local_areas, program_count, density) %>%
   group_by(local_areas) %>%
-  summarise(program_count = sum(program_count),
-            mean_density = mean(density, na.rm = TRUE),
-            .groups = "drop")
+  summarise(
+    total_program_count = sum(program_count, na.rm = TRUE),
+    mean = mean(density, na.rm = TRUE),
+    sd = sd(density, na.rm = TRUE),
+    max = max(density, na.rm = TRUE),
+    min = min(density, na.rm = TRUE),
+    .groups = "drop"
+  )
 
-print(summary_statistics_food)
+summary_statistics_food
 ```
 
 ## 3.3 Crime Data
@@ -152,13 +160,20 @@ combo_crime_census <- st_join(census_data, crime_data)
 
 summary_statistics_crime <- combo_crime_census %>%
   group_by(neighbourhood) %>%
-  reframe(count = n(),
-          area = st_area(geometry),
-          mean_crime_density = count / (area * 1e-6)) %>%
+  reframe(
+    count = n(),
+    area = st_area(geometry),
+    crime_density = count / (area * 1e-6)  # Convert area to square kilometers
+  ) %>%
   group_by(neighbourhood) %>%
-  summarise(total_crimes = first(count),
-            mean_crime_density = mean(mean_crime_density)) %>%                            
-  ungroup() 
+  summarise(
+    total_crimes = first(count),
+    mean = mean(crime_density, na.rm = TRUE),
+    sd = sd(crime_density, na.rm = TRUE),
+    max = max(crime_density, na.rm = TRUE),
+    min = min(crime_density, na.rm = TRUE)
+  ) %>%
+  ungroup()
 
 summary_statistics_crime
 ```
