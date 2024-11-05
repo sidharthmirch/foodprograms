@@ -310,7 +310,7 @@ kable(summary_statistics_crime)
 To answer this research question, we will use a multiple linear regression model that explores the relationship between food program density and crime rates in low-income communities, with the equation:
 
 $$
-(\text{Crime Density})_i = \beta_0+\beta_1(\text{Food Program Density}\cdot\text{Low Income})_i+\beta_2(\text{Food Program Density})_i+ \\ \beta_3(\text{Population Density})_i + \beta_4(Private Households)_i + \beta_5(Low Income)_i + \epsilon_i
+(\text{Crime Density})_i = \beta_0+\beta_1(\text{Food Program Density}\cdot\text{Low Income})_i+\beta_2(\text{Food Program Density})_i+ \\ \beta_3(\text{Population Density})_i + \beta_4(\text{Private Households})_i + \beta_5(\text{Low Income})_i + \epsilon_i
 $$
 
 In this regression equation, the dependent variable $\text{Crime Density}_i$ represents the density of crimes per area for each census dissemination area. Our key parameter of interest is $\beta_1$ which is the interaction term that allows us to isolate the effect of food programs within low-income neighbourhoods only, by multiplying $\text{Food Program Density}_i$ which measures the density of free or low-cost food programs in the area by the dummy variable $\text{Low Income}_i$ which takes on the value 0 or 1 depending on whether we classify it as a low-income neighbourhood. The covariates are $\text{Food Program Density}_i$, $\text{Population Density}_i$, $\text{Private Households}_i$, and $\text{Low Income}_i$, which are variables that may influence crime in a neighbourhood on their own. Including these covariates allows us to isolate the effect of food program density on crime density in low income areas by controlling these variables. The parameter $\beta_0$ is the intercept, which represents the expected value of the crime density when the independent variables are equal to zero. The other parameters, $\beta_i$, where $i \neq 0$, represents the change in the crime density for a one-unit increase in each variable, holding the other variables constant. This model assumes that the factors influence crime density independently and that the relationships are linear.
@@ -329,4 +329,60 @@ In this regression equation, the dependent variable $\text{Crime Density}_i$ rep
 
     <https://geodash.vpd.ca/opendata/.>
 
-\
+------------------------------------------------------------------------
+
+## Group Charter
+
+### Group Members
+
+-   Radhika Iyer
+
+-   Sidharth Mirchandani
+
+-   Hajra Ojha (Coordinator)
+
+-   Anishka Fernandopulle
+
+### Communication Plan
+
+-   We will communicate using iMessage, leaving comments on Google Drive (and restating on iMessage) for the written portions, and using GitHub (and restating on iMessage) for the coding portions.
+
+-   We will respond to messages within 6 hours during the day, saying we cannot reply/ do the requested work if we are busy.
+
+-   Hajra Ojha will be responsible for organizing our meetings and keeping minutes
+
+-   WhatsApp will be used in case our other method stops working
+
+### Meeting Schedule
+
+-   The set time is once a week, in person, on Monday after class but we will change the day or increase the frequency if needed.
+
+-   Meeting minutes will be recorded by Hajra Ojha
+
+-   On days we cannot meet in person, we will use Zoom.
+
+### Responsibilities
+
+-   Sidharth Mirchandani is most familiar with coding, so they will have the responsibility of managing the data for the project using GitHub
+
+-   Radhika Iyer and Anishka Fernandopulle will do the literature review
+
+-   All of the students will develop and estimate the model together
+
+-   Hajra Ojha will develop the background material and create visualizations
+
+-   Sidharth and Anishka will write and create tables of results
+
+-   Anishka will be the main analyst, while Radhika will be in charge of drafting the paper
+
+-   We will divide up sections of the paper, which Sidharth will edit and combine
+
+-   Hajra will be the coordinator
+
+### Conflict Resolution
+
+-   If we have an issue, we will discuss it amongst ourselves first and try to come to an agreement or find a solution.
+
+-   If we cannot decide amongst ourselves, we will reach out to Prof. Graves for guidance.
+
+-   We will keep our action logs up to date, documenting any issues.
