@@ -1,2 +1,3 @@
 load("/Users/hajraojha/Documents/GitHub/foodprograms/data/census.rda")
 census_data
+load("/Users/sid/Documents/ubc classes/2024w1/econ 326/foodprograms-326/data/data_crime.rda")

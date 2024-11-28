@@ -5,3 +5,4 @@
 helpers/canapikey
 API_KEY.rda
 .DS_Store
+.rDataTmp

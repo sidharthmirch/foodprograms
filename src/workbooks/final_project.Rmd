@@ -1,0 +1,540 @@
+---
+title: "Exploring the influence of low-cost food programs on crime density \\newline (Group 14) - Advanced Track"
+author: "Anishka Fernandopulle, Radhika Iyer, Sidharth Mirchandani, Hajra Ojha"
+output:
+  pdf_document:
+    fig_width: 5
+    fig_height: 4
+    fig_caption: true
+    df_print: kable
+  html_notebook: default
+  html_document:
+    theme: default
+    df_print: kable
+---
+
+```{r, results='hide',message=FALSE, echo=FALSE}
+library(tidyverse)
+library(cancensus)
+library(knitr)
+library(readr)
+library(sf)
+library(geojsonsf)
+library(paletteer)
+library(kableExtra)
+
+options(knitr.kable.NA = 'NA')
+
+load("API_KEY.rda")
+
+options(cancensus.api_key = api_key)
+options(cancensus.cache_path = "cache")
+
+vectors <- c("v_CA21_1",
+             "v_CA21_6",
+             "v_CA21_449",
+             "v_CA21_1040",
+             "v_CA21_1085",
+             "v_CA21_905")
+
+census_data <- get_census(
+  dataset = "CA21",
+  regions = list(
+    CSD = "5915022",
+    DA = c(
+      "59154012",
+      "59154105",
+      "59154090",
+      "59150936",
+      "59154101",
+      "59154104",
+      "59154035",
+      "59154103",
+      "59154102",
+      "59154034",
+      "59150945",
+      "59154091",
+      "59154093",
+      "59154099",
+      "59150946",
+      "59154100",
+      "59154078",
+      "59154079",
+      "59154082",
+      "59154081",
+      "59154080",
+      "59150939",
+      "59150938",
+      "59154083",
+      "59154095",
+      "59154084",
+      "59150941",
+      "59150942",
+      "59154085",
+      "59154088",
+      "59154087",
+      "59154089",
+      "59154097",
+      "59154098",
+      "59154096",
+      "59154092",
+      "59154013",
+      "59150952"
+    )
+  ),
+  vectors = vectors,
+  labels = "detailed",
+  geo_format = "sf",
+  level = "DA"
+)
+
+can_api_key <- ""
+save(census_data, file = "data/census.rda")
+
+food_data <- st_read("data/free-and-low-cost-food-programs.shp")  %>%
+  select(
+    "program_nam",
+    "program_sta",
+    "meal_cost",
+    "local_areas",
+    "latitude",
+    "longitude",
+    "geometry"
+  ) %>%
+  drop_na("latitude", "longitude") %>%
+  # set to wgs 84 as per can census
+  st_set_crs(4326)
+
+head(food_data)
+head(food_data$geometry)
+
+crime <- read_csv("data/crime_data_all_neighborhoods.csv")
+colnames(crime) <- tolower(make.names(colnames(crime)))
+
+head(crime)
+# now we mutate crime data to add shapefile information
+# first we create as a utm shapefile due to the data structure,
+# then convert to lat/long like census_data and food_data
+# crs = 32610 : utm 10
+# crs = 4326 : lat/long WGS84
+crime_data <- crime %>%
+  st_as_sf(coords = c("x", "y"), crs = 32610) %>%
+  st_transform(crs = 4326)
+
+# we need to remove (0,0) values for plotting as they cause errors on the axis
+# to do that we extract coords then filter where the Y component == 0
+crime_coords <- st_coordinates(crime_data)
+crime_data <- crime_data[crime_coords[, 2] != 0, ]
+
+census_geom <- st_geometry(census_data)
+census_centroids <- st_centroid(census_geom)
+
+distance_food <- st_distance(census_centroids, food_data)
+
+intersections_food <- st_intersects(census_data, food_data, sparse = FALSE)
+intersections_food_500 <- st_is_within_distance(census_data, food_data, sparse = FALSE, dist = 500)
+food_contained <- rowSums(intersections_food, dims = 1)
+food_within_500 <- rowSums(intersections_food_500, dims = 1)
+
+
+
+
+intersections_crime <- st_intersects(census_data, crime_data, sparse = FALSE)
+intersections_crime_500 <- st_is_within_distance(census_data, crime_data, sparse = FALSE, dist = 500)
+crime_contained <- rowSums(intersections_crime, dims = 1)
+crime_within_500 <- rowSums(intersections_crime_500, dims = 1)
+
+
+
+
+vectors <- c("v_CA21_1", "v_CA21_6", "v_CA21_449", "v_CA21_1040", "v_CA21_1085", "v_CA21_905")
+
+summary_statistics_census <- list()
+combo_statistics_census <- data.frame()
+
+# create summary table for every vector in census data
+# sources for manipulating through the list:
+# https://stackoverflow.com/a/25839767
+# https://stackoverflow.com/a/75671893
+
+for (vector in vectors) {
+  summary_table <- census_data %>%
+    st_drop_geometry() %>%  # Removes geometry column
+    select(matches(vector)) %>%
+    pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
+    filter(!is.na(value)) %>%
+    summarize(
+      mean = mean(value, na.rm = TRUE),
+      sd = sd(value, na.rm = TRUE),
+      max = max(value, na.rm = TRUE),
+      min = min(value, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    mutate(variable = vector) %>%
+    select(variable, everything())
+  
+  summary_statistics_census[[vector]] <- summary_table
+  
+  combo_statistics_census <- rbind(combo_statistics_census, summary_table)
+}
+
+food_count <- food_data %>%
+  st_set_geometry(NULL) %>% 
+  group_by(local_areas) %>%
+  summarise(count = n(), .groups = "drop")
+
+food_data_count <- food_data %>%
+  left_join(food_count, by = "local_areas") %>%
+  distinct(local_areas, .keep_all = TRUE) # one row per neighbourhood
+
+combo_food_census <- census_data %>%
+  st_join(food_data_count)
+
+combo_food_census <- combo_food_census %>%
+ mutate(program_count = replace_na(count, 0),
+        area = st_area(geometry),
+        density = program_count / (area * 1e-6))
+
+summary_statistics_food <- combo_food_census %>%
+  select(local_areas, program_count, density) %>%
+  group_by(local_areas) %>%
+  summarise(
+    count = sum(program_count, na.rm = TRUE),
+    mean = mean(density, na.rm = TRUE),
+    sd = sd(density, na.rm = TRUE),
+    max = max(density, na.rm = TRUE),
+    min = min(density, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  select(-geometry, -count, local_areas, mean, sd, max, min)%>%
+  st_set_geometry(NULL)
+
+combo_crime_census <- st_join(census_data, crime_data)
+
+summary_statistics_crime <- combo_crime_census %>%
+  group_by(neighbourhood) %>%
+  reframe(
+    count = n(),
+    area = st_area(geometry),
+    crime_density = count / (area * 1e-6)  # Convert area to square kilometers
+  ) %>%
+  group_by(neighbourhood) %>%
+  summarise(
+    total_crimes = first(count),
+    mean = mean(crime_density, na.rm = TRUE),
+    sd = sd(crime_density, na.rm = TRUE),
+    max = max(crime_density, na.rm = TRUE),
+    min = min(crime_density, na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  select(neighbourhood, mean, sd, max, min)
+
+# Load required libraries
+library(tidyverse)
+library(cancensus)
+library(knitr)
+library(readr)
+library(sf)
+library(geojsonsf)
+library(paletteer)
+library(units)
+library(broom)
+library(kableExtra)
+
+# Loading census using API key
+load("API_KEY.rda")
+options(cancensus.api_key = api_key)
+options(cancensus.cache_path = "cache")
+
+vectors <- c("v_CA21_1",
+             "v_CA21_6",
+             "v_CA21_449",
+             "v_CA21_1040",
+             "v_CA21_1085",
+             "v_CA21_905")
+
+# Get the dataset and save to file
+census_data <- get_census(
+  dataset = "CA21",
+  regions = list(
+    CSD = "5915022",
+    DA = c(
+      "59154012",
+      "59154105",
+      "59154090",
+      "59150936",
+      "59154101",
+      "59154104",
+      "59154035",
+      "59154103",
+      "59154102",
+      "59154034",
+      "59150945",
+      "59154091",
+      "59154093",
+      "59154099",
+      "59150946",
+      "59154100",
+      "59154078",
+      "59154079",
+      "59154082",
+      "59154081",
+      "59154080",
+      "59150939",
+      "59150938",
+      "59154083",
+      "59154095",
+      "59154084",
+      "59150941",
+      "59150942",
+      "59154085",
+      "59154088",
+      "59154087",
+      "59154089",
+      "59154097",
+      "59154098",
+      "59154096",
+      "59154092",
+      "59154013",
+      "59150952"
+    )
+  ),
+  vectors = vectors,
+  labels = "detailed",
+  geo_format = "sf",
+  level = "DA"
+)
+
+can_api_key <- ""
+save(census_data, file = "data/census.rda")
+
+
+
+# Load other data, rename, and standardize columns
+food_data <- st_read("data/free-and-low-cost-food-programs.shp")  %>%
+  select(
+    "program_nam",
+    "program_sta",
+    "meal_cost",
+    "local_areas",
+    "latitude",
+    "longitude",
+    "geometry"
+  ) %>%
+  drop_na("latitude", "longitude") %>%
+  st_set_crs(4326)
+
+
+crime <- read_csv("data/crime_data_all_neighborhoods.csv")
+colnames(crime) <- tolower(make.names(colnames(crime)))
+
+
+# Mutate crime data to add shapefile information
+crime_data <- crime %>%
+  st_as_sf(coords = c("x", "y"), crs = 32610) %>%
+  st_transform(crs = 4326)
+
+crime_coords <- st_coordinates(crime_data)
+crime_data <- crime_data[crime_coords[, 2] != 0, ]
+
+
+
+# need to add density from summary statistics crime for neighbourhood
+combined_table <- st_join(combo_food_census, combo_crime_census, join = st_intersects)
+
+combined_table <- combined_table %>%
+  select(-ends_with(".y")) %>%
+  rename_with(~ gsub("\\.x$", "", .), ends_with(".x"))
+
+combined_table <- combined_table %>%
+  left_join(summary_statistics_crime %>% select(neighbourhood, mean), 
+            by = "neighbourhood") %>%
+  rename(crime_density = mean) %>%
+  rename(food_density = density)
+
+combined_table <- combined_table %>%
+  rename_with(
+    ~ gsub(":.*$", "", .),  # Remove everything after the colon, including the colon
+    starts_with("v_CA21")  # Apply only to columns starting with "v_CA21"
+  )
+
+columns_to_drop_units <- c(
+  "crime_density",
+  "food_density",
+  "v_CA21_1040",
+  "v_CA21_1",
+  "v_CA21_449"
+)
+
+combined_table <- combined_table %>%
+  mutate(across(all_of(columns_to_drop_units), function(col) {
+    if (inherits(col, "units")) drop_units(col) else col
+  }))
+
+
+## dummy var low_inc
+
+# calculate the median LICO-AT across all neighborhoods
+median_lico_at <- median(combined_table$v_CA21_1085, na.rm = TRUE)
+
+# Add the low_income column
+combined_table <- combined_table %>%
+  mutate(
+    low_income = ifelse(
+      v_CA21_1085 > median_lico_at, 
+      1, 
+      0
+    )
+  )
+
+
+
+# Regression models
+
+
+reg_dummy <- lm(crime_density ~ 
+                  food_density:low_income + 
+                  food_density + 
+                  v_CA21_1 + 
+                  v_CA21_449 +
+                  low_income, 
+                data = combined_table)
+
+reg_dummy_summary <- summary(reg_dummy)
+
+dummy_coeff_table <- as.data.frame(reg_dummy_summary$coefficients)
+dummy_coeff_table <- cbind(Variable = rownames(dummy_coeff_table), dummy_coeff_table) 
+rownames(dummy_coeff_table) <- NULL
+
+
+
+variables <- c(
+  "food_density",
+  "v_CA21_1",
+  "v_CA21_449",
+  "low_income",
+  "food_density:low_income"
+  )
+
+# 1. Model with all variables (including interaction term)
+reg_all_vars <- lm(crime_density ~ 
+                   food_density:low_income + 
+                   food_density + 
+                   v_CA21_1 + 
+                   v_CA21_449 +
+                   low_income, 
+                 data = combined_table)
+
+# Summary of model with all variables
+summary_all_vars <- summary(reg_all_vars)
+
+# 2. Model without the interaction term
+reg_no_interaction <- lm(crime_density ~ 
+                         food_density + 
+                         v_CA21_1 + 
+                         v_CA21_449 +
+                         low_income, 
+                       data = combined_table)
+
+# Summary of model without interaction term
+summary_no_interaction <- summary(reg_no_interaction)
+
+# 3. Model with only food density, crime density, and low income
+reg_food_crime_low_income <- lm(crime_density ~ 
+                                food_density + 
+                                low_income, 
+                              data = combined_table)
+
+# Summary of model with only food density, crime density, and low income
+summary_food_crime_low_income <- summary(reg_food_crime_low_income)
+
+# Store summaries in a list for easier reference
+model_summaries <- list(
+  "All Variables" = summary_all_vars,
+  "Without Interaction" = summary_no_interaction,
+  "Food Density, Crime, Low Income" = summary_food_crime_low_income
+)
+
+
+```
+
+# Introduction
+
+-   Provide motivation for the paper
+-   Clearly and explicitly state the research question for the paper
+-   Provide key background: what do we know about the answer already
+-   Give an overview of your results and what your paper will find: what did you learn?
+
+**TODOS:**
+
+-   review current literature
+
+-   is there anything, what does it say
+
+# Data Description
+
+-   What is the source of the data?
+
+-   How is the data structured? Are there any important features we need to understand?
+
+-   What are the important variables? Why are they important?
+
+-   How are the variables structured? Are there any necessary transformations needed?
+
+-   What is your analysis sample? Why or how was it constructed
+
+## Summary Statistics
+
+-   create a clear, well-organized table of the key variables you will use in your analysis
+
+```{r}
+combo_statistics_census
+```
+
+# Model
+
+Explain and justify your regression model. Make sure you describe it completely and carefully. Write down an equation for the model. A good rule of thumb is that you should have roughly 1 main specification and 3-4 variations of the main model, handling specification choices.
+
+-   What variables did you use, and why? What about the errors?
+
+-   How did you specify the model (e.g. interactions)? Why?
+
+-   Which specifications did you use? Why are they different
+
+-   What coeﬀicients or outputs from the model will answer your question? How?
+
+-   Is there anything else we need to know about your model?
+
+```{r, echo=FALSE}
+for (model_name in names(model_summaries)) {
+  cat("\n\n", model_name, "\n")
+  kable(model_summaries[[model_name]]$coefficients, caption = paste("Summary of", model_name, "model")) %>%
+    print()
+}
+
+```
+
+## Table of Results
+
+Clear a clear and complete table (or tables) of results, showing the estimated model and your specification results
+
+# Discussion
+
+Discuss your results. Focus on how they answer your question, and what they tell you - try to go beyond simply reading or reporting the table, and try to interpret\
+them. Provide additional tests to validate your model and the answers it provides, as\
+appropriate.
+
+-   provide at least (1) specification check for a key assumption necessary,
+
+-   at least one (1) alternative analysis or extensions (e.g. robustness) using a\
+    regression model or related to help support or interpret your findings.
+
+# Conclusion
+
+Briefly re-iterate the key finding from the discussions of your results, connecting back to the motivation and background identified earlier.
+
+# References
+
+references for images , data, figures we didnt create, papers read etc
+
+# Attributions

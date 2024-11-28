@@ -1,0 +1,252 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+library(tidyverse)
+library(cancensus)
+library(knitr)
+library(readr)
+library(sf)
+library(geojsonsf)
+library(paletteer)
+library(kableExtra)
+library(broom)
+```
+
+## Census data
+
+```{r}
+load("API_KEY.rda")
+
+options(cancensus.api_key = api_key)
+options(cancensus.cache_path = "cache")
+
+vectors <- c("v_CA21_1",
+             "v_CA21_6",
+             "v_CA21_449",
+             "v_CA21_1040",
+             "v_CA21_1085",
+             "v_CA21_905")
+
+census_data <- get_census(
+  dataset = "CA21",
+  regions = list(
+    CSD = "5915022",
+    DA = c(
+      "59154012",
+      "59154105",
+      "59154090",
+      "59150936",
+      "59154101",
+      "59154104",
+      "59154035",
+      "59154103",
+      "59154102",
+      "59154034",
+      "59150945",
+      "59154091",
+      "59154093",
+      "59154099",
+      "59150946",
+      "59154100",
+      "59154078",
+      "59154079",
+      "59154082",
+      "59154081",
+      "59154080",
+      "59150939",
+      "59150938",
+      "59154083",
+      "59154095",
+      "59154084",
+      "59150941",
+      "59150942",
+      "59154085",
+      "59154088",
+      "59154087",
+      "59154089",
+      "59154097",
+      "59154098",
+      "59154096",
+      "59154092",
+      "59154013",
+      "59150952"
+    )
+  ),
+  vectors = vectors,
+  labels = "detailed",
+  geo_format = "sf",
+  level = "DA"
+)
+
+can_api_key <- ""
+save(census_data, file = "data/census.rda")
+```
+
+## Food data
+
+```{r}
+food_data <- st_read("data/free-and-low-cost-food-programs.shp")  %>%
+  select(
+    "program_nam",
+    "program_sta",
+    "meal_cost",
+    "local_areas",
+    "latitude",
+    "longitude",
+    "geometry"
+  ) %>%
+  drop_na("latitude", "longitude") %>%
+  # set to wgs 84 as per can census
+  st_set_crs(4326)
+```
+
+```{r}
+# Food data processing
+food_count <- food_data %>%
+  st_set_geometry(NULL) %>% 
+  group_by(local_areas) %>%
+  summarise(count = n(), .groups = "drop")
+
+food_data_count <- food_data %>%
+  left_join(food_count, by = "local_areas") %>%
+  distinct(local_areas, .keep_all = TRUE) # one row per neighbourhood
+
+combo_food_census <- census_data %>%
+  st_join(food_data_count)
+
+census_data_food <- combo_food_census %>%
+  mutate(program_count = replace_na(count, 0),
+         food_density = program_count / `Shape Area`)
+
+head(census_data_food) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+## Crime data
+
+```{r}
+crime <- read_csv("data/crime_data_all_neighborhoods.csv") %>%
+  mutate(TYPE = as_factor(TYPE),
+         HUNDRED_BLOCK = as_factor(HUNDRED_BLOCK),
+         NEIGHBOURHOOD = as_factor(NEIGHBOURHOOD)) %>%
+  filter(!is.na(X) & !is.na(Y))
+
+crime_data <- st_as_sf(crime, coords = c("X", "Y"), crs = "+proj=utm +zone=10") %>%
+  st_transform(crs = "+proj=longlat +datum=WGS84")
+```
+
+```{r}
+intersections <- st_is_within_distance(census_data, crime_data, sparse = FALSE, dist = 5)
+
+crimes_contained <- rowSums(intersections, dims = 1)
+
+mean(crimes_contained)
+
+census_data_crime <- census_data %>%
+  cbind(crimes_contained) %>%
+  mutate(crime_density = crimes_contained / Shape.Area)
+
+unique_crimes <- unique(crime_data$TYPE)
+
+for (type in unique_crimes) {
+  type_data <- crime_data %>% filter(TYPE == type)
+  intersections <- st_is_within_distance(census_data, type_data, sparse = FALSE, dist = 5)
+  sum <- rowSums(intersections, dims = 1)
+  df <- as.data.frame(sum)
+  census_data_crime <- census_data_crime %>% cbind(df$sum) %>% rename_with(~ paste0("crimes_", type), df.sum)
+  print(mean(sum))
+}
+
+head(census_data_crime) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+## Training data
+
+Now we merge all of our datasets into one table so we can feed it into our model.
+
+```{r}
+training_data <- st_join(census_data_crime, census_data_food)
+
+training_data <- training_data %>%
+  rename_with(
+    ~ gsub(":.*$", "", .),  # Remove everything after the colon, including the colon
+    starts_with("v_CA21")  # Apply only to columns starting with "v_CA21"
+  )
+
+median_lico_at <- median(training_data$v_CA21_1085, na.rm = TRUE)
+
+training_data <- training_data %>%
+  mutate(
+    low_income = ifelse(
+      v_CA21_1085 > median_lico_at, 
+      1, 
+      0))
+
+
+tail(training_data) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+# Model
+
+## Specification
+
+```{r}
+# Specification models
+# 1. Model with all variables (including interaction term)
+reg_all_vars <- lm(crime_density ~ 
+                   food_density:low_income + 
+                   food_density + 
+                   v_CA21_1 + 
+                   v_CA21_449 +
+                   low_income, 
+                 data = st_set_geometry(training_data, NULL))
+
+# 2. Model without the interaction term
+reg_no_interaction <- lm(crime_density ~ 
+                         food_density + 
+                         v_CA21_1 + 
+                         v_CA21_449 +
+                         low_income, 
+                       data = st_set_geometry(training_data, NULL))
+
+# 3. Model with only food density, crime density, and low income
+reg_food_crime_low_income <- lm(crime_density ~ 
+                                food_density + 
+                                low_income, 
+                              data = st_set_geometry(training_data, NULL))
+
+# Summary for each specification tested
+summary_all_vars <- summary(reg_all_vars)
+summary_no_interaction <- summary(reg_no_interaction)
+summary_food_crime_low_income <- summary(reg_food_crime_low_income)
+
+model_summaries <- list(
+  "All Variables" = summary_all_vars,
+  "Without Interaction" = summary_no_interaction,
+  "Food Density, Crime, Low Income" = summary_food_crime_low_income
+)
+```
+
+# RESULTS FROM SPEC
+
+```{r}
+for (model_name in names(model_summaries)) {
+  cat("\n\n", model_name, "\n")
+  
+  # Convert the coefficients to a data frame for display with kable
+  coefficients_df <- as.data.frame(model_summaries[[model_name]]$coefficients)
+  
+  # Use kable to display the coefficients in a simple table format
+  print(kable(coefficients_df, col.names = c("Estimate", "Std. Error", "t value", "Pr(>|t|)")))
+}
+
+```

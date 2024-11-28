@@ -1,0 +1,829 @@
+---
+title: "Final Proposal (Group 14) - Advanced Track"
+author: "Anishka Fernandopulle, Radhika Iyer, Sidharth Mirchandani, Hajra Ojha"
+output:
+  html_document: 
+    theme: cerulean
+    df_print: kable
+  word_document: default
+  pdf_document: 
+    fig_width: 5
+    fig_height: 4
+    fig_caption: true
+---
+
+```{r, results='hide',message=FALSE, echo=FALSE}
+library(tidyverse)
+library(cancensus)
+library(knitr)
+library(readr)
+library(sf)
+library(geojsonsf)
+library(paletteer)
+library(kableExtra)
+
+options(knitr.kable.NA = 'NA')
+
+load("API_KEY.rda")
+
+options(cancensus.api_key = api_key)
+options(cancensus.cache_path = "cache")
+
+vectors <- c("v_CA21_1",
+             "v_CA21_6",
+             "v_CA21_449",
+             "v_CA21_1040",
+             "v_CA21_1085",
+             "v_CA21_905")
+
+census_data <- get_census(
+  dataset = "CA21",
+  regions = list(
+    CSD = "5915022",
+    DA = c(
+      "59154012",
+      "59154105",
+      "59154090",
+      "59150936",
+      "59154101",
+      "59154104",
+      "59154035",
+      "59154103",
+      "59154102",
+      "59154034",
+      "59150945",
+      "59154091",
+      "59154093",
+      "59154099",
+      "59150946",
+      "59154100",
+      "59154078",
+      "59154079",
+      "59154082",
+      "59154081",
+      "59154080",
+      "59150939",
+      "59150938",
+      "59154083",
+      "59154095",
+      "59154084",
+      "59150941",
+      "59150942",
+      "59154085",
+      "59154088",
+      "59154087",
+      "59154089",
+      "59154097",
+      "59154098",
+      "59154096",
+      "59154092",
+      "59154013",
+      "59150952"
+    )
+  ),
+  vectors = vectors,
+  labels = "detailed",
+  geo_format = "sf",
+  level = "DA"
+)
+
+can_api_key <- ""
+save(census_data, file = "data/census.rda")
+
+food_data <- st_read("data/free-and-low-cost-food-programs.shp")  %>%
+  select(
+    "program_nam",
+    "program_sta",
+    "meal_cost",
+    "local_areas",
+    "latitude",
+    "longitude",
+    "geometry"
+  ) %>%
+  drop_na("latitude", "longitude") %>%
+  # set to wgs 84 as per can census
+  st_set_crs(4326)
+
+head(food_data)
+head(food_data$geometry)
+
+crime <- read_csv("data/crime_data_all_neighborhoods.csv")
+colnames(crime) <- tolower(make.names(colnames(crime)))
+
+head(crime)
+# now we mutate crime data to add shapefile information
+# first we create as a utm shapefile due to the data structure,
+# then convert to lat/long like census_data and food_data
+# crs = 32610 : utm 10
+# crs = 4326 : lat/long WGS84
+crime_data <- crime %>%
+  st_as_sf(coords = c("x", "y"), crs = 32610) %>%
+  st_transform(crs = 4326)
+
+# we need to remove (0,0) values for plotting as they cause errors on the axis
+# to do that we extract coords then filter where the Y component == 0
+crime_coords <- st_coordinates(crime_data)
+crime_data <- crime_data[crime_coords[, 2] != 0, ]
+
+census_geom <- st_geometry(census_data)
+census_centroids <- st_centroid(census_geom)
+
+distance_food <- st_distance(census_centroids, food_data)
+
+intersections_food <- st_intersects(census_data, food_data, sparse = FALSE)
+intersections_food_500 <- st_is_within_distance(census_data, food_data, sparse = FALSE, dist = 500)
+food_contained <- rowSums(intersections_food, dims = 1)
+food_within_500 <- rowSums(intersections_food_500, dims = 1)
+
+
+
+
+intersections_crime <- st_intersects(census_data, crime_data, sparse = FALSE)
+intersections_crime_500 <- st_is_within_distance(census_data, crime_data, sparse = FALSE, dist = 500)
+crime_contained <- rowSums(intersections_crime, dims = 1)
+crime_within_500 <- rowSums(intersections_crime_500, dims = 1)
+
+
+vectors <- c("v_CA21_1", "v_CA21_6", "v_CA21_449", "v_CA21_1040", "v_CA21_1085", "v_CA21_905")
+
+summary_statistics_census <- list()
+combo_statistics_census <- data.frame()
+
+# create summary table for every vector in census data
+# sources for manipulating through the list:
+# https://stackoverflow.com/a/25839767
+# https://stackoverflow.com/a/75671893
+
+for (vector in vectors) {
+  summary_table <- census_data %>%
+    st_drop_geometry() %>%  # Removes geometry column
+    select(matches(vector)) %>%
+    pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
+    filter(!is.na(value)) %>%
+    summarize(
+      mean = mean(value, na.rm = TRUE),
+      sd = sd(value, na.rm = TRUE),
+      max = max(value, na.rm = TRUE),
+      min = min(value, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    mutate(variable = vector) %>%
+    select(variable, everything())
+  
+  summary_statistics_census[[vector]] <- summary_table
+  
+  combo_statistics_census <- rbind(combo_statistics_census, summary_table)
+}
+
+food_count <- food_data %>%
+  st_set_geometry(NULL) %>% 
+  group_by(local_areas) %>%
+  summarise(count = n(), .groups = "drop")
+
+food_data_count <- food_data %>%
+  left_join(food_count, by = "local_areas") %>%
+  distinct(local_areas, .keep_all = TRUE) # one row per neighbourhood
+
+combo_food_census <- census_data %>%
+  st_join(food_data_count)
+
+combo_food_census <- combo_food_census %>%
+ mutate(program_count = replace_na(count, 0),
+        area = st_area(geometry),
+        density = program_count / (area * 1e-6))
+
+summary_statistics_food <- combo_food_census %>%
+  select(local_areas, program_count, density) %>%
+  group_by(local_areas) %>%
+  summarise(
+    count = sum(program_count, na.rm = TRUE),
+    mean = mean(density, na.rm = TRUE),
+    sd = sd(density, na.rm = TRUE),
+    max = max(density, na.rm = TRUE),
+    min = min(density, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  select(-geometry, -count, local_areas, mean, sd, max, min)%>%
+  st_set_geometry(NULL)
+
+combo_crime_census <- st_join(census_data, crime_data)
+
+summary_statistics_crime <- combo_crime_census %>%
+  group_by(neighbourhood) %>%
+  reframe(
+    count = n(),
+    area = st_area(geometry),
+    crime_density = count / (area * 1e-6)  # Convert area to square kilometers
+  ) %>%
+  group_by(neighbourhood) %>%
+  summarise(
+    total_crimes = first(count),
+    mean = mean(crime_density, na.rm = TRUE),
+    sd = sd(crime_density, na.rm = TRUE),
+    max = max(crime_density, na.rm = TRUE),
+    min = min(crime_density, na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  select(neighbourhood, mean, sd, max, min)
+```
+
+```{r}
+library(tidyverse)
+library(cancensus)
+library(knitr)
+library(readr)
+library(sf)
+library(geojsonsf)
+library(paletteer)
+library(units)
+library(broom)
+library(kableExtra)
+```
+
+### Loading census using API key
+
+#### First we load our api key and create our vector of columns we would like to extract
+
+```{r}
+load("API_KEY.rda")
+
+options(cancensus.api_key = api_key)
+options(cancensus.cache_path = "cache")
+
+vectors <- c("v_CA21_1",
+             "v_CA21_6",
+             "v_CA21_449",
+             "v_CA21_1040",
+             "v_CA21_1085",
+             "v_CA21_905")
+```
+
+#### Get the dataset and save to file. Clear api key out of global env. THIS DATA CONTAINS SF INFO FOR CENSUS!!!!
+
+```{r}
+census_data <- get_census(
+  dataset = "CA21",
+  regions = list(
+    CSD = "5915022",
+    DA = c(
+      "59154012",
+      "59154105",
+      "59154090",
+      "59150936",
+      "59154101",
+      "59154104",
+      "59154035",
+      "59154103",
+      "59154102",
+      "59154034",
+      "59150945",
+      "59154091",
+      "59154093",
+      "59154099",
+      "59150946",
+      "59154100",
+      "59154078",
+      "59154079",
+      "59154082",
+      "59154081",
+      "59154080",
+      "59150939",
+      "59150938",
+      "59154083",
+      "59154095",
+      "59154084",
+      "59150941",
+      "59150942",
+      "59154085",
+      "59154088",
+      "59154087",
+      "59154089",
+      "59154097",
+      "59154098",
+      "59154096",
+      "59154092",
+      "59154013",
+      "59150952"
+    )
+  ),
+  vectors = vectors,
+  labels = "detailed",
+  geo_format = "sf",
+  level = "DA"
+)
+
+can_api_key <- ""
+save(census_data, file = "data/census.rda")
+```
+
+```{r}
+head(census_data)
+```
+
+### (note)Then we have to load other data, transform , add sf info, then merge into dataset and add comparison functions
+
+### Loading other datasets , renaming and standardizing columns
+
+```{r}
+food_data <- st_read("data/free-and-low-cost-food-programs.shp")  %>%
+  select(
+    "program_nam",
+    "program_sta",
+    "meal_cost",
+    "local_areas",
+    "latitude",
+    "longitude",
+    "geometry"
+  ) %>%
+  drop_na("latitude", "longitude") %>%
+  # set to wgs 84 as per can census
+  st_set_crs(4326)
+
+head(food_data)
+head(food_data$geometry)
+```
+
+```{r}
+crime <- read_csv("data/crime_data_all_neighborhoods.csv")
+colnames(crime) <- tolower(make.names(colnames(crime)))
+
+head(crime)
+# now we mutate crime data to add shapefile information
+# first we create as a utm shapefile due to the data structure,
+# then convert to lat/long like census_data and food_data
+# crs = 32610 : utm 10
+# crs = 4326 : lat/long WGS84
+crime_data <- crime %>%
+  st_as_sf(coords = c("x", "y"), crs = 32610) %>%
+  st_transform(crs = 4326)
+
+# we need to remove (0,0) values for plotting as they cause errors on the axis
+# to do that we extract coords then filter where the Y component == 0
+crime_coords <- st_coordinates(crime_data)
+crime_data <- crime_data[crime_coords[, 2] != 0, ]
+
+head(crime_data)
+head(st_geometry(crime_data))
+```
+
+### combined table
+
+```{r}
+# need to add density from summary statistics crime for neighbourhood
+combined_table <- st_join(combo_food_census, combo_crime_census, join = st_intersects)
+
+combined_table <- combined_table %>%
+  select(-ends_with(".y")) %>%
+  rename_with(~ gsub("\\.x$", "", .), ends_with(".x"))
+
+combined_table <- combined_table %>%
+  left_join(summary_statistics_crime %>% select(neighbourhood, mean), 
+            by = "neighbourhood") %>%
+  rename(crime_density = mean) %>%
+  rename(food_density = density)
+
+combined_table <- combined_table %>%
+  rename_with(
+    ~ gsub(":.*$", "", .),  # Remove everything after the colon, including the colon
+    starts_with("v_CA21")  # Apply only to columns starting with "v_CA21"
+  )
+
+columns_to_drop_units <- c(
+  "crime_density",
+  "food_density",
+  "v_CA21_1040",
+  "v_CA21_1",
+  "v_CA21_449"
+)
+
+combined_table <- combined_table %>%
+  mutate(across(all_of(columns_to_drop_units), function(col) {
+    if (inherits(col, "units")) drop_units(col) else col
+  }))
+# View the result
+head(combined_table)
+```
+
+### dummy variable low income
+
+```{r}
+# calculate the median LICO-AT across all neighborhoods
+median_lico_at <- median(combined_table$v_CA21_1085, na.rm = TRUE)
+
+# Add the low_income column
+combined_table <- combined_table %>%
+  mutate(
+    low_income = ifelse(
+      v_CA21_1085 > median_lico_at, 
+      1, 
+      0
+    )
+  )
+
+# View the updated table
+head(combined_table)
+
+
+```
+
+### Shapefile distance calculations
+
+```{r}
+# example statistics from jonathon
+census_geom <- st_geometry(census_data)
+census_centroids <- st_centroid(census_geom)
+
+distance_food <- st_distance(census_centroids, food_data)
+
+intersections_food <- st_intersects(census_data, food_data, sparse = FALSE)
+intersections_food_500 <- st_is_within_distance(census_data, food_data, sparse = FALSE, dist = 500)
+food_contained <- rowSums(intersections_food, dims = 1)
+food_within_500 <- rowSums(intersections_food_500, dims = 1)
+
+mean(food_contained)
+mean(food_within_500)
+```
+
+#### this cell takes a long time to run, idk why right now so avoid running it, all other calcs work independent (it does finish running though)
+
+```{r}
+distance_crime <- st_distance(census_centroids, crime_data)
+```
+
+```{r}
+intersections_crime <- st_intersects(census_data, crime_data, sparse = FALSE)
+intersections_crime_500 <- st_is_within_distance(census_data, crime_data, sparse = FALSE, dist = 500)
+crime_contained <- rowSums(intersections_crime, dims = 1)
+crime_within_500 <- rowSums(intersections_crime_500, dims = 1)
+
+
+mean(crime_contained)
+mean(crime_within_500)
+```
+
+### Visualizing our data
+
+```{r}
+can_map <- ggplot() +
+  geom_sf(data = census_data, color = "blue") +
+  theme_minimal() +
+  labs(title = "Census data mapping", )
+
+crime_map <- ggplot() +
+  geom_sf(
+    data = crime_data,
+    aes(color = type),
+    alpha = 0.8,
+    size = 0.5,
+    fill = "white"
+  ) +
+  theme_minimal() +
+  labs(title = "Crime data mapping",
+       fill = "Legend",
+       color = "Crime Type") +
+  theme(legend.position = "right") +
+  scale_color_paletteer_d("ggthemes::Classic_Purple_Gray_12")
+
+# some extra themes
+# scale_color_paletteer_d("ggprism::autumn_leaves")
+# scale_color_paletteer_d("beyonce::X70")
+# scale_color_paletteer_d("impressionist.colors::te_aa_no_areois")
+# scale_color_paletteer_d("ggthemes::Classic_Purple_Gray_12")
+
+food_map <- ggplot() +
+  geom_sf(data = food_data, color = "blue") +
+  theme_minimal() +
+  labs(title = "Food center mapping")
+
+can_map
+crime_map
+food_map
+```
+
+```{r}
+crime_food_plot <- ggplot() +
+  geom_sf(data = census_data, color = "black") +
+  geom_sf(
+    data = crime_data,
+    aes(color = "geometry"),
+    size = 0.4,
+    alpha = 0.2
+  ) +
+  geom_sf(
+    data = food_data,
+    aes(fill = "yellow"),
+    color = "black",
+    size = 2,
+    alpha = 0.8,
+    shape = 21
+  ) +
+  coord_sf() +
+  labs(title = "Free and Low Cost Food Programs plotted against Crime, Vancouver") +
+  theme_minimal() +
+  theme(legend.position = "right") +
+  scale_fill_manual(
+    name = "",
+    values = "yellow",
+    labels = c("Food Programs")
+  ) +
+  scale_color_manual(name = "",
+                     values = "red",
+                     labels = c("Crime")) +
+  # increase point size for legend only
+  guides(fill = guide_legend(override.aes = list(size = 5)),
+         color = guide_legend(override.aes = list(size = 5, alpha = 0.5)))
+
+crime_food_plot
+```
+
+```{r}
+lim_at_plot <- ggplot() +
+  geom_sf(
+    data = census_data,
+    aes(fill = `v_CA21_1040: Prevalence of low income based on the Low-income measure, after tax (LIM-AT) (%)`),
+    color = "black",
+    size = 0.2
+  ) +
+  scale_fill_paletteer_c("viridis::viridis", 
+                         name = "Low Income (%)",
+                         limits = c(0, 100)) +
+  labs(title = "Prevalence of low income based on the Low-income measure, after tax") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+lim_at_plot 
+
+lico_at_plot <- ggplot() +
+  geom_sf(
+    data = census_data,
+    aes(fill = `v_CA21_1085: Prevalence of low income based on the Low-income cut-offs, after tax (LICO-AT) (%)`),
+    color = "black",
+    size = 0.2
+  ) +
+  scale_fill_paletteer_c("viridis::viridis", 
+                         name = "Low Income (%)",
+                         limits = c(0, 100)) +
+  labs(title = "Prevalence of low income based on the Low-income cut-offs, after tax") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+lico_at_plot
+```
+
+```{r}
+lim_crime_food_plot <- ggplot() +
+  # lim-at + can map from census data
+  geom_sf(
+    data = census_data,
+    aes(fill = `v_CA21_1040: Prevalence of low income based on the Low-income measure, after tax (LIM-AT) (%)`),
+    color = "black",
+    size = 0.2
+  ) +
+  # crime mapping
+  geom_sf(
+    data = crime_data,
+    color = "red",
+    size = 0.3,
+    alpha = 0.2
+  ) +
+  geom_sf(
+    data = food_data,
+    fill = "yellow",
+    color = "black",
+    size = 2,
+    alpha = 0.8,
+    shape = 21
+  ) +
+  # lim-at gradient
+  scale_fill_paletteer_c("viridis::viridis", 
+                         name = "Low Income (%)",
+                         limits = c(0, 100)) +
+  labs(title = "Low Income Prevalence + Crime and Food Centers (LIM-AT)") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+
+lim_crime_food_plot                              
+```
+
+```{r}
+lico_crime_food_plot <- ggplot() +
+  # Low income measure (LIM-AT) as a continuous fill
+  geom_sf(
+    data = census_data,
+    aes(fill = `v_CA21_1085: Prevalence of low income based on the Low-income cut-offs, after tax (LICO-AT) (%)`),
+    color = "black",
+    size = 0.2
+  ) +
+  # Crime data, set color to red without aes (not mapped)
+  geom_sf(
+    data = crime_data,
+    color = "red",
+    size = 0.2,
+    alpha = 0.2
+  ) +
+  # Food programs, set fill to yellow without aes (not mapped)
+  geom_sf(
+    data = food_data,
+    fill = "yellow",   # Fixed yellow fill
+    color = "black",
+    size = 2,
+    alpha = 0.8,
+    shape = 21
+  ) +
+  # Viridis scale for continuous data
+  scale_fill_paletteer_c("viridis::viridis", 
+                         name = "Low Income (%)",
+                         limits = c(0, 100)) +
+  labs(title = "Low Income Prevalence + Crime and Food Centers (LICO-AT)") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+#TODO: legends for food center
+
+
+lico_crime_food_plot  
+```
+
+## Model
+
+$$
+(\text{Crime Density})_i = \beta_0+\beta_1(\text{Food Program Density}\cdot\text{Low Income})_i+\beta_2(\text{Food Program Density})_i+ \\ \beta_3(\text{Population Density})_i + \beta_4(\text{Private Households})_i + \beta_5(\text{Low Income})_i + \epsilon_i
+$$
+
+```{r}
+reg_limat <- lm(crime_density ~ 
+                  food_density:v_CA21_1040 + 
+                  food_density + 
+                  v_CA21_1 + 
+                  v_CA21_449 +
+                  v_CA21_1040, 
+                data = combined_table)
+
+limat_summary <- summary(reg_limat)
+```
+
+```{r}
+reg_licoat <- lm(crime_density ~ 
+                  food_density:v_CA21_1085 + 
+                  food_density + 
+                  v_CA21_1 + 
+                  v_CA21_449 +
+                  v_CA21_1085, 
+                data = combined_table)
+
+licoat_summary <- summary(reg_licoat)
+```
+
+```{r}
+limat_coeff_table <- as.data.frame(limat_summary$coefficients)
+limat_coeff_table <- cbind(Variable = rownames(limat_coeff_table), limat_coeff_table) 
+rownames(limat_coeff_table) <- NULL
+
+# Format and display the table with kable
+kable(limat_coeff_table, caption = "Regression Coefficients: limat", digits = 10)
+```
+
+```{r}
+licoat_coeff_table <- as.data.frame(licoat_summary$coefficients)
+licoat_coeff_table <- cbind(Variable = rownames(licoat_coeff_table), licoat_coeff_table) 
+rownames(licoat_coeff_table) <- NULL
+
+# Format and display the table with kable
+kable(licoat_coeff_table, caption = "Regression Coefficients: licoat", digits = 10)
+```
+
+```{r}
+variables <- c(
+  "`food_density`",
+  "v_CA21_1",
+  "v_CA21_449",
+  "v_CA21_1085",
+  "food_density:v_CA21_1085"
+)
+
+results <- expand_grid(Row = variables, Col = variables) %>%
+  mutate(
+    Formula = ifelse(
+      Row == Col, NA,  # Avoid self-interaction
+      paste("crime_density ~", Row, "+", Col)
+    )
+  ) %>%
+  rowwise() %>%
+  mutate(
+    R_Squared = if (!is.na(Formula)) {
+      mod <- lm(as.formula(Formula), data = combined_table)
+      summary(mod)$r.squared
+    } else {
+      NA
+    }
+  ) %>%
+  select(Row, Col, R_Squared)
+
+# Pivot for matrix structure
+results_matrix1 <- results %>%
+  pivot_wider(names_from = Col, values_from = R_Squared)
+
+# Display the table
+kable(results_matrix1, 
+      caption = "Regression R^2 Matrix Including Interaction Term",
+      digits = 3) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+```{r}
+variables <- c(
+  "food_density",
+  "v_CA21_1",
+  "v_CA21_449",
+  "v_CA21_1040",
+  "food_density:v_CA21_1040"
+  )
+
+# Generate pairwise regression results including interaction
+results <- expand_grid(Row = variables, Col = variables) %>%
+  mutate(
+    Formula = ifelse(
+      Row == Col, NA,  # Avoid self-interaction
+      paste("crime_density ~", Row, "+", Col)
+    )
+  ) %>%
+  rowwise() %>%
+  mutate(
+    R_Squared = if (!is.na(Formula)) {
+      mod <- lm(as.formula(Formula), data = combined_table)
+      summary(mod)$r.squared
+    } else {
+      NA
+    }
+  ) %>%
+  select(Row, Col, R_Squared)
+
+# Pivot for matrix structure
+results_matrix2 <- results %>%
+  pivot_wider(names_from = Col, values_from = R_Squared)
+
+# Display the table
+kable(results_matrix2, 
+      caption = "Regression R^2 Matrix Including Interaction Term",
+      digits = 3) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+```{r}
+reg_dummy <- lm(crime_density ~ 
+                  food_density:low_income + 
+                  food_density + 
+                  v_CA21_1 + 
+                  v_CA21_449 +
+                  low_income, 
+                data = combined_table)
+
+reg_dummy_summary <- summary(reg_dummy)
+
+dummy_coeff_table <- as.data.frame(reg_dummy_summary$coefficients)
+dummy_coeff_table <- cbind(Variable = rownames(dummy_coeff_table), dummy_coeff_table) 
+rownames(dummy_coeff_table) <- NULL
+
+# Format and display the table with kable
+kable(dummy_coeff_table, caption = "Regression Coefficients", digits = 10)
+```
+
+```{r}
+variables <- c(
+  "food_density",
+  "v_CA21_1",
+  "v_CA21_449",
+  "low_income",
+  "food_density:low_income"
+  )
+
+# Generate pairwise regression results including interaction
+results <- expand_grid(Row = variables, Col = variables) %>%
+  mutate(
+    Formula = ifelse(
+      Row == Col, NA,  # Avoid self-interaction
+      paste("crime_density ~", Row, "+", Col)
+    )
+  ) %>%
+  rowwise() %>%
+  mutate(
+    R_Squared = if (!is.na(Formula)) {
+      mod <- lm(as.formula(Formula), data = combined_table)
+      summary(mod)$r.squared
+    } else {
+      NA
+    }
+  ) %>%
+  select(Row, Col, R_Squared)
+
+# Pivot for matrix structure
+results_matrix3 <- results %>%
+  pivot_wider(names_from = Col, values_from = R_Squared)
+
+# Display the table
+kable(results_matrix3, 
+      caption = "Regression R^2 Matrix Including Interaction Term",
+      digits = 3) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"))
+```
