@@ -25,73 +25,11 @@ library(kableExtra)
 
 options(knitr.kable.NA = 'NA')
 
-load("API_KEY.rda")
+load(here("data/census.rda"))
 
-options(cancensus.api_key = api_key)
-options(cancensus.cache_path = "cache")
+n <- nrow(census_data)
 
-vectors <- c("v_CA21_1",
-             "v_CA21_6",
-             "v_CA21_449",
-             "v_CA21_1040",
-             "v_CA21_1085",
-             "v_CA21_905")
-
-census_data <- get_census(
-  dataset = "CA21",
-  regions = list(
-    CSD = "5915022",
-    DA = c(
-      "59154012",
-      "59154105",
-      "59154090",
-      "59150936",
-      "59154101",
-      "59154104",
-      "59154035",
-      "59154103",
-      "59154102",
-      "59154034",
-      "59150945",
-      "59154091",
-      "59154093",
-      "59154099",
-      "59150946",
-      "59154100",
-      "59154078",
-      "59154079",
-      "59154082",
-      "59154081",
-      "59154080",
-      "59150939",
-      "59150938",
-      "59154083",
-      "59154095",
-      "59154084",
-      "59150941",
-      "59150942",
-      "59154085",
-      "59154088",
-      "59154087",
-      "59154089",
-      "59154097",
-      "59154098",
-      "59154096",
-      "59154092",
-      "59154013",
-      "59150952"
-    )
-  ),
-  vectors = vectors,
-  labels = "detailed",
-  geo_format = "sf",
-  level = "DA"
-)
-
-can_api_key <- ""
-save(census_data, file = "data/census.rda")
-
-food_data <- st_read("data/free-and-low-cost-food-programs.shp")  %>%
+food_data <- st_read(here("data/free-and-low-cost-food-programs.shp"))  %>%
   select(
     "program_nam",
     "program_sta",
@@ -108,7 +46,7 @@ food_data <- st_read("data/free-and-low-cost-food-programs.shp")  %>%
 head(food_data)
 head(food_data$geometry)
 
-crime <- read_csv("data/crime_data_all_neighborhoods.csv")
+crime <- read_csv(here("data/crime_data_all_neighborhoods.csv"))
 colnames(crime) <- tolower(make.names(colnames(crime)))
 
 head(crime)
@@ -325,7 +263,7 @@ food_data <- st_read("data/free-and-low-cost-food-programs.shp")  %>%
   st_set_crs(4326)
 
 
-crime <- read_csv("data/crime_data_all_neighborhoods.csv")
+crime <- read_csv(here("data/crime_data_all_neighborhoods.csv"))
 colnames(crime) <- tolower(make.names(colnames(crime)))
 
 

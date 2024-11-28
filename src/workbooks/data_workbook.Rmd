@@ -14,12 +14,16 @@ library(geojsonsf)
 library(paletteer)
 library(kableExtra)
 library(broom)
+library(here)
 ```
 
 ## Census data
 
-```{r}
-load("API_KEY.rda")
+We load previously loaded census data. The code for fetching this data is also shown in this section.
+
+```{r, eval = FALSE}
+#| execute: false
+load(here("API_KEY.rda"))
 
 options(cancensus.api_key = api_key)
 options(cancensus.cache_path = "cache")
@@ -83,13 +87,20 @@ census_data <- get_census(
 )
 
 can_api_key <- ""
-save(census_data, file = "data/census.rda")
+save(census_data, file = "../../data/census.rda")
+```
+
+```{r}
+load(here("data/census.rda"))
+
+n <- nrow(census_data)
+head(census_data)
 ```
 
 ## Food data
 
 ```{r}
-food_data <- st_read("data/free-and-low-cost-food-programs.shp")  %>%
+food_data <- st_read(here("data/free-and-low-cost-food-programs.shp"))  %>%
   select(
     "program_nam",
     "program_sta",
@@ -130,7 +141,7 @@ head(census_data_food) %>%
 ## Crime data
 
 ```{r}
-crime <- read_csv("data/crime_data_all_neighborhoods.csv") %>%
+crime <- read_csv(here("data/crime_data_all_neighborhoods.csv")) %>%
   mutate(TYPE = as_factor(TYPE),
          HUNDRED_BLOCK = as_factor(HUNDRED_BLOCK),
          NEIGHBOURHOOD = as_factor(NEIGHBOURHOOD)) %>%

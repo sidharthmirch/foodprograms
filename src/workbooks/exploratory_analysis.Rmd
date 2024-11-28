@@ -2,14 +2,14 @@
 title: "Final Proposal (Group 14) - Advanced Track"
 author: "Anishka Fernandopulle, Radhika Iyer, Sidharth Mirchandani, Hajra Ojha"
 output:
-  html_document: 
-    theme: cerulean
-    df_print: kable
-  word_document: default
   pdf_document: 
     fig_width: 5
     fig_height: 4
     fig_caption: true
+  word_document: default
+  html_document: 
+    theme: cerulean
+    df_print: kable
 ---
 
 ```{r, results='hide',message=FALSE, echo=FALSE}
@@ -24,7 +24,7 @@ library(kableExtra)
 
 options(knitr.kable.NA = 'NA')
 
-load("API_KEY.rda")
+load(here("API_KEY.rda"))
 
 options(cancensus.api_key = api_key)
 options(cancensus.cache_path = "cache")
@@ -88,9 +88,9 @@ census_data <- get_census(
 )
 
 can_api_key <- ""
-save(census_data, file = "data/census.rda")
+save(census_data, file = here("data/census.rda"))
 
-food_data <- st_read("data/free-and-low-cost-food-programs.shp")  %>%
+food_data <- st_read(here("data/free-and-low-cost-food-programs.shp"))  %>%
   select(
     "program_nam",
     "program_sta",
@@ -107,7 +107,7 @@ food_data <- st_read("data/free-and-low-cost-food-programs.shp")  %>%
 head(food_data)
 head(food_data$geometry)
 
-crime <- read_csv("data/crime_data_all_neighborhoods.csv")
+crime <- read_csv(here("data/crime_data_all_neighborhoods.csv"))
 colnames(crime) <- tolower(make.names(colnames(crime)))
 
 head(crime)
@@ -245,7 +245,7 @@ library(kableExtra)
 #### First we load our api key and create our vector of columns we would like to extract
 
 ```{r}
-load("API_KEY.rda")
+load(here("API_KEY.rda"))
 
 options(cancensus.api_key = api_key)
 options(cancensus.cache_path = "cache")
@@ -325,7 +325,7 @@ head(census_data)
 ### Loading other datasets , renaming and standardizing columns
 
 ```{r}
-food_data <- st_read("data/free-and-low-cost-food-programs.shp")  %>%
+food_data <- st_read(here("data/free-and-low-cost-food-programs.shp"))  %>%
   select(
     "program_nam",
     "program_sta",
@@ -344,7 +344,7 @@ head(food_data$geometry)
 ```
 
 ```{r}
-crime <- read_csv("data/crime_data_all_neighborhoods.csv")
+crime <- read_csv(here("data/crime_data_all_neighborhoods.csv"))
 colnames(crime) <- tolower(make.names(colnames(crime)))
 
 head(crime)
