@@ -2,6 +2,8 @@
 output:
   pdf_document: default
   html_document: default
+header-includes:
+  - \usepackage{graphicx}
 ---
 
 ```{r setup, include=FALSE}
@@ -195,6 +197,12 @@ reg_all_vars_449 <- lm(crime_density ~
                        low_income, 
                      data = st_set_geometry(training_data, NULL))
 
+models_spec <- list(
+  "All Variables" = reg_all_vars,
+  "Without Interaction" = reg_no_interaction,
+  "Food Density, Crime, Low Income" = reg_food_crime_low_income
+)
+
 # Summary for each specification tested
 summary_all_vars <- summary(reg_all_vars)
 summary_no_interaction <- summary(reg_no_interaction)
@@ -213,15 +221,85 @@ model_summaries <- list(
 # RESULTS FROM SPEC
 
 ```{r, results="asis"}
-stargazer(reg_all_vars, reg_no_interaction, reg_food_crime_low_income,
-          type = "latex",
-          covariate.labels = c("Food Program Density: Low Income", 
-                               "Food Program Density", 
-                               "Population Density", 
-                               "Average Household Size", 
-                               "Low Income"),
-          dep.var.labels = "Crime Density",
-          title = "Regression Models Summary",
+stargazer(
+  reg_all_vars,
+  reg_no_interaction, 
+  reg_food_crime_low_income,
+  type = "latex",
+  covariate.labels = c(
+    "(Intercept)",
+    "Food Program Density: Low Income",
+    "Food Program Density",
+    "Population Density", 
+    "Average Household Size (v\\_CA21\\_452)",
+    "Low Income"
+    
+  ),
+  omit = c("pop_density.x", "v_CA21_452"),
+  add.lines = list(
+    c("Includes Interaction?", "Yes", "No", "No"),
+    c("Population Density Included?", "Yes", "Yes", "No"), 
+    c("Average Household Size (v\\_CA21\\_452) Included?", "Yes", "Yes", "No")
+  ),
+  title = "Regression Specification Table",
+  digits = 3
+)
+```
+
+### Model 1: 
+
+```{r, results='asis'}
+# Model 1: reg_all_vars
+stargazer(reg_all_vars, type = "latex",
+          covariate.labels = c("(Intercept)", 
+                              "Food Program Density: Low Income",
+    "Food Program Density",
+    "Population Density", 
+    "Average Household Size (v\\_CA21\\_452)",
+    "Low Income"),
+          add.lines = list(
+            c("Includes Interaction?", "Yes", "No", "No"),
+            c("Population Density Included?", "Yes", "Yes", "No"),
+            c("Average Household Size (v\\_CA21\\_452) Included?", "Yes", "Yes", "No")
+          ),
+          title = "Spec 1: All Variables",
+          digits = 3)
+```
+
+### Model 2:
+
+```{r, results='asis'}
+# Model 2: reg_no_interaction
+stargazer(reg_no_interaction, type = "latex",
+          covariate.labels = c("(Intercept)",
+                              "Food Program Density",
+                              "Population Density", 
+                              "Average Household Size (v\\_CA21\\_452)",
+                              "Low Income"),
+          add.lines = list(
+            c("Includes Interaction?", "No", "No", "No"),
+            c("Population Density Included?", "Yes", "Yes", "No"),
+            c("Average Household Size (v\\_CA21\\_452) Included?", "Yes", "Yes", "No")
+          ),
+          title = "Spec 2: Omitted interaction term",
+          digits = 3)
+```
+
+### Model 3:
+
+```{r, results='asis'}
+# Model 3: reg_food_crime_low_income
+stargazer(reg_food_crime_low_income, type = "latex",
+          covariate.labels = c("(Intercept)",
+                              "Food Program Density",
+                              "Low Income"),
+          omit = c("pop_density.x", "v_CA21_452"),
+          add.lines = list(
+            c("Includes Interaction?", "No", "No", "No"),
+            c("Population Density Included?", "No", "Yes", "No"), 
+            c("Average Household Size (v\\_CA21\\_452) Included?", "No", "Yes", "No")
+          ),
+          title = "Spec 3: Food Density and Low Income",
           digits = 3)
 ```
 
@@ -236,5 +314,4 @@ stargazer(reg_all_vars_449,
           dep.var.labels = "Crime Density",
           title = "Regression Model Summary (with Persons in Household)",
           digits = 3)
-
 ```
