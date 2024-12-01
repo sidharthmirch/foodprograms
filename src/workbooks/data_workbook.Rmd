@@ -4,18 +4,10 @@ output:
   html_document: default
 ---
 
-```{r}
-library(tidyverse)
-library(cancensus)
-library(knitr)
-library(readr)
-library(sf)
-library(geojsonsf)
-library(paletteer)
-library(kableExtra)
-library(broom)
-library(here)
-library(stargazer)
+```{r setup, include=FALSE}
+lapply(c("tidyverse", "cancensus", "knitr", "readr", "sf", 
+         "geojsonsf", "paletteer", "kableExtra", 
+         "broom", "here", "stargazer"), library, character.only = TRUE)
 ```
 
 ## Census data
@@ -29,59 +21,19 @@ load(here("API_KEY.rda"))
 options(cancensus.api_key = api_key)
 options(cancensus.cache_path = "cache")
 
-vectors <- c("v_CA21_1",
-             "v_CA21_6",
-             "v_CA21_452",
-             "v_CA21_449",
-             "v_CA21_1040",
-             "v_CA21_1085",
-             "v_CA21_905")
+vectors <- c("v_CA21_1", "v_CA21_6", "v_CA21_452", "v_CA21_449", "v_CA21_1040", "v_CA21_1085", "v_CA21_905")
+
+region_DA <- c("59154012", "59154105", "59154090", "59150936", "59154101", "59154104", 
+               "59154035", "59154103", "59154102", "59154034", "59150945", "59154091", 
+               "59154093", "59154099", "59150946", "59154100", "59154078", "59154079", 
+               "59154082", "59154081", "59154080", "59150939", "59150938", "59154083", 
+               "59154095", "59154084", "59150941", "59150942", "59154085", "59154088", 
+               "59154087", "59154089", "59154097", "59154098", "59154096", "59154092", 
+               "59154013", "59150952")
 
 census_data <- get_census(
   dataset = "CA21",
-  regions = list(
-    CSD = "5915022",
-    DA = c(
-      "59154012",
-      "59154105",
-      "59154090",
-      "59150936",
-      "59154101",
-      "59154104",
-      "59154035",
-      "59154103",
-      "59154102",
-      "59154034",
-      "59150945",
-      "59154091",
-      "59154093",
-      "59154099",
-      "59150946",
-      "59154100",
-      "59154078",
-      "59154079",
-      "59154082",
-      "59154081",
-      "59154080",
-      "59150939",
-      "59150938",
-      "59154083",
-      "59154095",
-      "59154084",
-      "59150941",
-      "59150942",
-      "59154085",
-      "59154088",
-      "59154087",
-      "59154089",
-      "59154097",
-      "59154098",
-      "59154096",
-      "59154092",
-      "59154013",
-      "59150952"
-    )
-  ),
+  regions = list(CSD = "5915022", DA = region_DA),
   vectors = vectors,
   labels = "detailed",
   geo_format = "sf",
@@ -95,11 +47,12 @@ can_api_key <- ""
 save(census_data, file = "../../data/census.rda")
 ```
 
-```{r}
+```{r table_1}
 load(here("data/census.rda"))
 
 n <- nrow(census_data)
-head(census_data)
+kable(head(census_data[, 1:5]), format = "latex", booktabs = TRUE, caption = "Census Data, 2021 (truncated rows and columns)") %>%
+  kable_styling(latex_options = c("striped", "hold_position"))
 ```
 
 ## Food data
@@ -120,7 +73,7 @@ food_data <- st_read(here("data/free-and-low-cost-food-programs.shp"))  %>%
   st_set_crs(4326)
 ```
 
-```{r}
+```{r table_2}
 # Food data processing
 food_count <- food_data %>%
   st_set_geometry(NULL) %>% 
@@ -138,15 +91,17 @@ census_data_food <- combo_food_census %>%
   mutate(program_count = replace_na(count, 0),
          food_density = program_count / `Shape Area`)
 
-head(census_data_food) %>%
-  kable() %>%
-  kable_styling(bootstrap_options = c("striped", "hover"))
+head(census_data_food[, 1:5]) %>%
+  kable(format = "latex", booktabs = TRUE, caption = "Food Data merged with Census Data, 2021 (truncated rows and columns)") %>%
+  kable_styling(latex_options = c("striped", "hold_position"))
 ```
+
+\_
 
 ## Crime data
 
 ```{r}
-crime <- read_csv(here("data/crime_data_all_neighborhoods.csv")) %>%
+crime <- read_csv(here("data/crime_data_all_neighborhoods.csv"), show_col_types = FALSE) %>%
   mutate(TYPE = as_factor(TYPE),
          HUNDRED_BLOCK = as_factor(HUNDRED_BLOCK),
          NEIGHBOURHOOD = as_factor(NEIGHBOURHOOD)) %>%
@@ -161,8 +116,6 @@ intersections <- st_is_within_distance(census_data, crime_data, sparse = FALSE, 
 
 crimes_contained <- rowSums(intersections, dims = 1)
 
-mean(crimes_contained)
-
 census_data_crime <- census_data %>%
   cbind(crimes_contained) %>%
   mutate(crime_density = crimes_contained / Shape.Area)
@@ -175,10 +128,7 @@ for (type in unique_crimes) {
   sum <- rowSums(intersections, dims = 1)
   df <- as.data.frame(sum)
   census_data_crime <- census_data_crime %>% cbind(df$sum) %>% rename_with(~ paste0("crimes_", type), df.sum)
-  print(mean(sum))
 }
-
-kable(head(census_data_crime))
 ```
 
 ## Training data
@@ -205,8 +155,6 @@ training_data <- training_data %>%
 
 
 training_data[is.na(training_data)] <- 0
-
-kable(tail(training_data))
 ```
 
 # Model
