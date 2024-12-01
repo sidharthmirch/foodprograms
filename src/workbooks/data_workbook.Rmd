@@ -15,6 +15,7 @@ library(paletteer)
 library(kableExtra)
 library(broom)
 library(here)
+library(stargazer)
 ```
 
 ## Census data
@@ -30,6 +31,7 @@ options(cancensus.cache_path = "cache")
 
 vectors <- c("v_CA21_1",
              "v_CA21_6",
+             "v_CA21_452",
              "v_CA21_449",
              "v_CA21_1040",
              "v_CA21_1085",
@@ -85,6 +87,9 @@ census_data <- get_census(
   geo_format = "sf",
   level = "DA"
 )
+
+census_data <- census_data %>%
+  mutate(pop_density = `v_CA21_1: Population, 2021` / `Shape Area`)
 
 can_api_key <- ""
 save(census_data, file = "../../data/census.rda")
@@ -173,14 +178,12 @@ for (type in unique_crimes) {
   print(mean(sum))
 }
 
-head(census_data_crime) %>%
-  kable() %>%
-  kable_styling(bootstrap_options = c("striped", "hover"))
+kable(head(census_data_crime))
 ```
 
 ## Training data
 
-Now we merge all of our datasets into one table so we can feed it into our model.
+Now we merge all of our data-sets into one table so we can feed it into our model.
 
 ```{r}
 training_data <- st_join(census_data_crime, census_data_food)
@@ -201,9 +204,9 @@ training_data <- training_data %>%
       0))
 
 
-tail(training_data) %>%
-  kable() %>%
-  kable_styling(bootstrap_options = c("striped", "hover"))
+training_data[is.na(training_data)] <- 0
+
+kable(tail(training_data))
 ```
 
 # Model
@@ -216,16 +219,16 @@ tail(training_data) %>%
 reg_all_vars <- lm(crime_density ~ 
                    food_density:low_income + 
                    food_density + 
-                   v_CA21_1 + 
-                   v_CA21_449 +
+                   pop_density.x + 
+                   v_CA21_452 +
                    low_income, 
                  data = st_set_geometry(training_data, NULL))
 
 # 2. Model without the interaction term
 reg_no_interaction <- lm(crime_density ~ 
                          food_density + 
-                         v_CA21_1 + 
-                         v_CA21_449 +
+                         pop_density.x + 
+                         v_CA21_452 +
                          low_income, 
                        data = st_set_geometry(training_data, NULL))
 
@@ -235,29 +238,55 @@ reg_food_crime_low_income <- lm(crime_density ~
                                 low_income, 
                               data = st_set_geometry(training_data, NULL))
 
+# 4. Model with all variables (including interaction term) but replacing v_CA21_452 with v_CA21_449
+reg_all_vars_449 <- lm(crime_density ~ 
+                       food_density:low_income + 
+                       food_density + 
+                       pop_density.x + 
+                       v_CA21_449 +  # Replaced v_CA21_452 with v_CA21_449
+                       low_income, 
+                     data = st_set_geometry(training_data, NULL))
+
 # Summary for each specification tested
 summary_all_vars <- summary(reg_all_vars)
 summary_no_interaction <- summary(reg_no_interaction)
 summary_food_crime_low_income <- summary(reg_food_crime_low_income)
+summary_all_vars_449 <- summary(reg_all_vars_449)
 
+# Add to the list of model summaries
 model_summaries <- list(
   "All Variables" = summary_all_vars,
   "Without Interaction" = summary_no_interaction,
-  "Food Density, Crime, Low Income" = summary_food_crime_low_income
+  "Food Density, Crime, Low Income" = summary_food_crime_low_income,
+  "All Variables (with v_CA21_449)" = summary_all_vars_449
 )
 ```
 
 # RESULTS FROM SPEC
 
-```{r}
-for (model_name in names(model_summaries)) {
-  cat("\n\n", model_name, "\n")
-  
-  # Convert the coefficients to a data frame for display with kable
-  coefficients_df <- as.data.frame(model_summaries[[model_name]]$coefficients)
-  
-  # Use kable to display the coefficients in a simple table format
-  print(kable(coefficients_df, col.names = c("Estimate", "Std. Error", "t value", "Pr(>|t|)")))
-}
+```{r, results="asis"}
+stargazer(reg_all_vars, reg_no_interaction, reg_food_crime_low_income,
+          type = "latex",
+          covariate.labels = c("Food Program Density: Low Income", 
+                               "Food Program Density", 
+                               "Population Density", 
+                               "Average Household Size", 
+                               "Low Income"),
+          dep.var.labels = "Crime Density",
+          title = "Regression Models Summary",
+          digits = 3)
+```
+
+```{r, results='asis'}
+stargazer(reg_all_vars_449,
+          type = "latex",
+          covariate.labels = c("Food Program Density: Low Income", 
+                               "Food Program Density", 
+                               "Population Density", 
+                               "Persons in Household (v\\_CA21\\_449)", 
+                               "Low Income"),
+          dep.var.labels = "Crime Density",
+          title = "Regression Model Summary (with Persons in Household)",
+          digits = 3)
 
 ```
