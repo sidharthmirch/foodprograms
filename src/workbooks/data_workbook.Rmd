@@ -220,98 +220,265 @@ model_summaries <- list(
 
 # RESULTS FROM SPEC
 
-```{r, results="asis"}
-stargazer(
-  reg_all_vars,
-  reg_no_interaction, 
-  reg_food_crime_low_income,
-  type = "latex",
-  covariate.labels = c(
-    "(Intercept)",
-    "Food Program Density: Low Income",
-    "Food Program Density",
-    "Population Density", 
-    "Average Household Size (v\\_CA21\\_452)",
-    "Low Income"
-    
-  ),
-  omit = c("pop_density.x", "v_CA21_452"),
-  add.lines = list(
-    c("Includes Interaction?", "Yes", "No", "No"),
-    c("Population Density Included?", "Yes", "Yes", "No"), 
-    c("Average Household Size (v\\_CA21\\_452) Included?", "Yes", "Yes", "No")
-  ),
-  title = "Regression Specification Table",
-  digits = 3
+### Function definitions
+
+We needed to manipulate our regression model data into formatted tables that emulated those from the package `stargazer` as we were having significant alignment issues between the data and rendered tables.
+
+```{r}
+all_variables <- unique(c(
+  names(coef(reg_all_vars)),
+  names(coef(reg_no_interaction)),
+  names(coef(reg_food_crime_low_income))
+))
+
+all_variables_escaped <- gsub("_", "\\\\_", all_variables)  # Escape underscores
+all_variables_escaped <- paste0("\\texttt{", all_variables_escaped, "}")  # Wrap in \texttt{} for LaTeX
+
+add_stars <- function(estimates, ses, p_values) {
+  significance_levels <- ifelse(p_values < 0.01, "***",
+                          ifelse(p_values < 0.05, "**",
+                          ifelse(p_values < 0.1, "*", "")))
+  formatted <- sprintf("%.3f (%.3f)%s", estimates, ses, significance_levels)
+  return(formatted)
+}
+
+extract_summary <- function(model, all_vars) {
+  coefs <- coef(model)
+  ses <- sqrt(diag(vcov(model)))
+  p_values <- coef(summary(model))[, 4]  # Extract p-values from the summary
+
+  # Create placeholders for all variables
+  aligned_coefs <- setNames(rep(NA, length(all_vars)), all_vars)
+  aligned_ses <- setNames(rep(NA, length(all_vars)), all_vars)
+  aligned_p_values <- setNames(rep(NA, length(all_vars)), all_vars)
+
+  # Fill with existing coefficients, standard errors, and p-values
+  for (var in names(coefs)) {
+    aligned_coefs[var] <- coefs[var]
+    aligned_ses[var] <- ses[var]
+    aligned_p_values[var] <- p_values[var]
+  }
+
+  # Replace missing coefficients with 0
+  aligned_coefs[is.na(aligned_coefs)] <- 0
+
+  # Add stars to coefficients based on significance levels
+  significance_levels <- ifelse(aligned_p_values < 0.01, "***",
+                          ifelse(aligned_p_values < 0.05, "**",
+                          ifelse(aligned_p_values < 0.1, "*", "")))
+
+  # Format coefficients and standard errors for display
+  formatted <- ifelse(is.na(aligned_ses),
+                      sprintf("%.3f", aligned_coefs),
+                      sprintf("%.3f (%.3f)%s", aligned_coefs, aligned_ses, significance_levels))
+
+  # Replace missing standard errors with blank strings
+  formatted[is.na(aligned_ses)] <- " "
+
+  # Escape underscores for LaTeX compatibility and wrap in \texttt{} for table display
+  formatted <- gsub("_", "\\\\_", formatted)
+  formatted <- paste0("\\texttt{", formatted, "}")
+
+  return(formatted)
+}
+
+extract_model_info <- function(model, covariate_labels, model_title) {
+  coefs <- coef(model)
+  ses <- sqrt(diag(vcov(model)))
+  p_values <- coef(summary(model))[, 4]  # Extract p-values from the summary
+  
+  # Format coefficients, standard errors, and significance stars
+  significance_levels <- ifelse(p_values < 0.01, "***",
+                                ifelse(p_values < 0.05, "**",
+                                       ifelse(p_values < 0.1, "*", "")))
+  
+  formatted <- sprintf("%.3f (%.3f)%s", coefs, ses, significance_levels)
+  
+  # Combine covariate labels and the formatted coefficients
+  result <- data.frame(
+    Variable = covariate_labels,
+    Estimate = formatted,
+    stringsAsFactors = FALSE
+  )
+  
+  # Add model title
+  result <- rbind(data.frame(Variable = model_title, Estimate = "", stringsAsFactors = FALSE), result)
+  
+  return(result)
+}
+
+
+
+# Extract R-squared, F-statistics, and number of observations from each model
+r_squared <- c(
+  summary(reg_all_vars)$r.squared,
+  summary(reg_no_interaction)$r.squared,
+  summary(reg_food_crime_low_income)$r.squared
 )
+
+f_statistic <- c(
+  summary(reg_all_vars)$fstatistic[1],
+  summary(reg_no_interaction)$fstatistic[1],
+  summary(reg_food_crime_low_income)$fstatistic[1]
+)
+
+n_obs <- c(
+  length(reg_all_vars$fitted.values),
+  length(reg_no_interaction$fitted.values),
+  length(reg_food_crime_low_income$fitted.values)
+)
+
+
+model1_aligned <- extract_summary(reg_all_vars, all_variables)
+model2_aligned <- extract_summary(reg_no_interaction, all_variables)
+model3_aligned <- extract_summary(reg_food_crime_low_income, all_variables)
+```
+
+### Data manipulation
+
+```{r}
+aligned_table <- data.frame(
+  Variable = all_variables_escaped,
+  `Model 1` = model1_aligned,
+  `Model 2` = model2_aligned,
+  `Model 3` = model3_aligned,
+  stringsAsFactors = FALSE
+)
+
+print(aligned_table)
+
+summary_table <- data.frame(
+  Variable = c("R squared", "F statistic", "Observations"),
+  `Model 1` = c(sprintf("%.3f", r_squared[1]), sprintf("%.1f", f_statistic[1]), n_obs[1]),
+  `Model 2` = c(sprintf("%.3f", r_squared[2]), sprintf("%.1f", f_statistic[2]), n_obs[2]),
+  `Model 3` = c(sprintf("%.3f", r_squared[3]), sprintf("%.1f", f_statistic[3]), n_obs[3]),
+  stringsAsFactors = FALSE
+)
+
+# Combine both tables
+final_table <- rbind(aligned_table, summary_table)
+print(final_table)
+```
+
+```{r}
+covariate_labels <- c(
+  "(Intercept)", 
+  "Food Program Density: Low Income",
+  "Food Program Density",
+  "Population Density", 
+  "Average Household Size (v\\_CA21\\_452)",
+  "Low Income"
+)
+covariate_labels_2 <- c(
+  "(Intercept)",
+  "Food Program Density",
+  "Population Density", 
+  "Average Household Size (v\\_CA21\\_452)",
+  "Low Income"
+)
+
+covariate_labels_3 <- c(
+  "(Intercept)",
+  "Food Program Density",
+  "Low Income"
+)
+
+model_1_table <- extract_model_info(
+  model = reg_all_vars,
+  covariate_labels = covariate_labels,
+  model_title = "Spec 1: All Variables"
+)
+
+model_2_table <- extract_model_info(
+  model = reg_no_interaction,
+  covariate_labels = covariate_labels_2,
+  model_title = "Spec 2: Omitted Interaction Term"
+)
+
+model_3_table <- extract_model_info(
+  model = reg_food_crime_low_income,
+  covariate_labels = covariate_labels_3,
+  model_title = "Spec 3: Food Density and Low Income"
+)
+```
+
+### Regression table
+
+```{r}
+# Render the final table in a stargazer-like format using knitr::kable
+kable(
+  final_table,
+  format = "latex",
+  col.names = c("Variable", "Model 1", "Model 2", "Model 3"),
+  caption = "Regression Specifications",
+  align = "lccc",
+  booktabs = TRUE,
+  escape = FALSE
+) %>%
+  kable_styling(latex_options = c("hold_position", "striped")) %>%
+  add_header_above(c(" " = 1, "Dependent Variable: Crime Density" = 3)) %>%
+  footnote(general = "* p < 0.1; ** p < 0.05; *** p < 0.01", 
+           general_title = "Note:", 
+           footnote_as_chunk = TRUE, 
+           escape = FALSE)
 ```
 
 ### Model 1: 
 
 ```{r, results='asis'}
 # Model 1: reg_all_vars
-stargazer(reg_all_vars, type = "latex",
-          covariate.labels = c("(Intercept)", 
-                              "Food Program Density: Low Income",
-    "Food Program Density",
-    "Population Density", 
-    "Average Household Size (v\\_CA21\\_452)",
-    "Low Income"),
-          add.lines = list(
-            c("Includes Interaction?", "Yes", "No", "No"),
-            c("Population Density Included?", "Yes", "Yes", "No"),
-            c("Average Household Size (v\\_CA21\\_452) Included?", "Yes", "Yes", "No")
-          ),
-          title = "Spec 1: All Variables",
-          digits = 3)
+kable(
+  model_1_table,
+  format = "latex",
+  col.names = c("Variable", "Estimate"),
+  caption = "All Variables (Model 1)",
+  align = "lc",
+  booktabs = TRUE,
+  escape = FALSE
+) %>%
+  kable_styling(latex_options = c("hold_position", "striped")) %>%
+  footnote(general = "* p < 0.1; ** p < 0.05; *** p < 0.01", 
+           general_title = "Note:", 
+           footnote_as_chunk = TRUE, 
+           escape = FALSE)
 ```
 
 ### Model 2:
 
 ```{r, results='asis'}
 # Model 2: reg_no_interaction
-stargazer(reg_no_interaction, type = "latex",
-          covariate.labels = c("(Intercept)",
-                              "Food Program Density",
-                              "Population Density", 
-                              "Average Household Size (v\\_CA21\\_452)",
-                              "Low Income"),
-          add.lines = list(
-            c("Includes Interaction?", "No", "No", "No"),
-            c("Population Density Included?", "Yes", "Yes", "No"),
-            c("Average Household Size (v\\_CA21\\_452) Included?", "Yes", "Yes", "No")
-          ),
-          title = "Spec 2: Omitted interaction term",
-          digits = 3)
+kable(
+  model_2_table,
+  format = "latex",
+  col.names = c("Variable", "Estimate"),
+  caption = "Omitted Interaction Term (Model 2)",
+  align = "lc",
+  booktabs = TRUE,
+  escape = FALSE
+) %>%
+  kable_styling(latex_options = c("hold_position", "striped")) %>%
+  footnote(general = "* p < 0.1; ** p < 0.05; *** p < 0.01", 
+           general_title = "Note:", 
+           footnote_as_chunk = TRUE, 
+           escape = FALSE)
 ```
 
 ### Model 3:
 
 ```{r, results='asis'}
 # Model 3: reg_food_crime_low_income
-stargazer(reg_food_crime_low_income, type = "latex",
-          covariate.labels = c("(Intercept)",
-                              "Food Program Density",
-                              "Low Income"),
-          omit = c("pop_density.x", "v_CA21_452"),
-          add.lines = list(
-            c("Includes Interaction?", "No", "No", "No"),
-            c("Population Density Included?", "No", "Yes", "No"), 
-            c("Average Household Size (v\\_CA21\\_452) Included?", "No", "Yes", "No")
-          ),
-          title = "Spec 3: Food Density and Low Income",
-          digits = 3)
-```
-
-```{r, results='asis'}
-stargazer(reg_all_vars_449,
-          type = "latex",
-          covariate.labels = c("Food Program Density: Low Income", 
-                               "Food Program Density", 
-                               "Population Density", 
-                               "Persons in Household (v\\_CA21\\_449)", 
-                               "Low Income"),
-          dep.var.labels = "Crime Density",
-          title = "Regression Model Summary (with Persons in Household)",
-          digits = 3)
+kable(
+  model_3_table,
+  format = "latex",
+  col.names = c("Variable", "Estimate"),
+  caption = "Food Density and Low Income (Model 3)",
+  align = "lc",
+  booktabs = TRUE,
+  escape = FALSE
+) %>%
+  kable_styling(latex_options = c("hold_position", "striped")) %>%
+  footnote(general = "* p < 0.1; ** p < 0.05; *** p < 0.01", 
+           general_title = "Note:", 
+           footnote_as_chunk = TRUE, 
+           escape = FALSE)
 ```
