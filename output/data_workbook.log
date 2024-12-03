@@ -1,4 +1,4 @@
-This is LuaHBTeX, Version 1.15.0 (TeX Live 2022)  (format=lualatex 2022.10.2)  2 DEC 2024 22:19
+This is LuaHBTeX, Version 1.15.0 (TeX Live 2022)  (format=lualatex 2022.10.2)  2 DEC 2024 22:57
  restricted system commands enabled.
 **data_workbook.tex
 (./data_workbook.tex
@@ -1024,7 +1024,7 @@ LaTeX Font Info:    Font shape `TU/lmtt/bx/n' in size <10> not available
 {/usr/local/texlive/2022/texmf-var/fonts/map/pdftex/updmap/pdftex.map}]
 Underfull \hbox (badness 10000) in paragraph at lines 225--225
 []\TU/lmtt/m/n/10 ##   `/Users/sid/Documents/ubc classes/2024w1/econ 326/foodpro
-grams-326/data/free-and-
+grams/data/free-and-low-
  []
 
 
@@ -1067,36 +1067,41 @@ LaTeX Warning: `!h' float specifier changed to `!ht'.
 Underfull \vbox (badness 10000) detected at line 1022
  []
 
-[14]
-Overfull \hbox (466.18497pt too wide) in paragraph at lines 1050--1063
+[14] [15]
+Overfull \hbox (49.94998pt too wide) in paragraph at lines 1051--1064
  [][] 
  []
 
-[15] (./data_workbook.aux))
+[16
+
+] [17
+
+] (./data_workbook.aux))
 
 Here is how much of LuaTeX's memory you used:
- 22178 strings out of 477785
+ 22183 strings out of 477785
  125086,953878 words of node,token memory allocated
  587 words of node memory still in use:
    7 hlist, 2 vlist, 2 rule, 1 local_par, 4 glue, 4 kern, 1 penalty, 3 glyph, 8 
 attribute, 61 glue_spec, 8 attribute_list, 1 write, 1 user_defined nodes
-   avail lists: 1:1,2:2325,3:1490,4:843,5:653,6:188,7:6937,8:13,9:709,10:2,11:11
+   avail lists: 1:1,2:2325,3:1490,4:843,5:653,6:188,7:6937,8:13,9:709,10:4,11:11
 1
- 42039 multiletter control sequences out of 65536+600000
- 47 fonts using 11856903 bytes
+ 42042 multiletter control sequences out of 65536+600000
+ 48 fonts using 11988695 bytes
  86i,10n,121p,1009b,617s stack positions out of 10000i,1000n,20000p,200000b,200000s
-</usr/local/texlive/2022/texmf-dist/fonts/opentype/public/lm/lmroman10-italic.ot
-f></usr/local/texlive/2022/texmf-dist/fonts/opentype/public/lm/lmroman10-bold.ot
-f></usr/local/texlive/2022/texmf-dist/fonts/opentype/public/lm/lmmono10-italic.o
-tf></usr/local/texlive/2022/texmf-dist/fonts/opentype/public/lm/lmmono10-regular
-.otf></usr/local/texlive/2022/texmf-dist/fonts/opentype/public/lm/lmmonolt10-bol
-d.otf></usr/local/texlive/2022/texmf-dist/fonts/opentype/public/lm/lmroman10-reg
-ular.otf></usr/local/texlive/2022/texmf-dist/fonts/opentype/public/lm/lmroman12-
-bold.otf>
-Output written on data_workbook.pdf (15 pages, 82823 bytes).
+</usr/local/texlive/2022/texmf-dist/fonts/opentype/public/lm/lmroman10-bolditali
+c.otf></usr/local/texlive/2022/texmf-dist/fonts/opentype/public/lm/lmroman10-ita
+lic.otf></usr/local/texlive/2022/texmf-dist/fonts/opentype/public/lm/lmroman10-b
+old.otf></usr/local/texlive/2022/texmf-dist/fonts/opentype/public/lm/lmmono10-it
+alic.otf></usr/local/texlive/2022/texmf-dist/fonts/opentype/public/lm/lmmono10-r
+egular.otf></usr/local/texlive/2022/texmf-dist/fonts/opentype/public/lm/lmmonolt
+10-bold.otf></usr/local/texlive/2022/texmf-dist/fonts/opentype/public/lm/lmroman
+10-regular.otf></usr/local/texlive/2022/texmf-dist/fonts/opentype/public/lm/lmro
+man12-bold.otf>
+Output written on data_workbook.pdf (17 pages, 89728 bytes).
 
-PDF statistics: 187 PDF objects out of 1000 (max. 8388607)
- 147 compressed objects within 2 object streams
- 37 named destinations out of 1000 (max. 131072)
+PDF statistics: 202 PDF objects out of 1000 (max. 8388607)
+ 157 compressed objects within 2 object streams
+ 39 named destinations out of 1000 (max. 131072)
  113 words of extra memory for PDF output out of 10000 (max. 100000000)
 

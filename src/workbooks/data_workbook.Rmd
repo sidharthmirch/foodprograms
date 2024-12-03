@@ -585,23 +585,40 @@ cluster_summary_table <- do.call(rbind, lapply(1:k, function(i) {
 
 ```{r, results='asis'}
 kable(
-  cluster_summary_table,
+  cluster_summary_table %>% select(-Observations),
   format = "latex",
   col.names = c("Cluster", "(Intercept)", "Food Density", "Pop Density", 
                 "Avg HH Size", "Low Income", "Food Dens:Low Inc",
-                "R^2", "F Stat", "Obs"),
+                "R\\^2", "F Stat"),
   caption = "Robustness Check: Model Results for Each Cluster",
-  align = "lcccccccc",
+  align = "lccccccc",
   booktabs = TRUE,
   escape = FALSE
 ) %>%
   kable_styling(latex_options = c("hold_position", "striped")) %>%
   landscape() %>%  # Rotate the entire table to fit better on the page
-  add_header_above(c(" " = 1, "Cluster-wise Model Summary" = 9)) %>%
+  add_header_above(c(" " = 1, "Cluster-wise Model Summary" = 8)) %>%
   footnote(general = "* p < 0.1; ** p < 0.05; *** p < 0.01", 
            general_title = "Note:", 
            footnote_as_chunk = TRUE, 
            escape = FALSE)
 
 cluster_summary_table
+```
+
+```{r}
+# Convert the cluster column to a factor
+census_data$cluster <- as.factor(census_data$cluster)
+
+# Plot the regions and highlight clusters with adjusted color scale
+ggplot(data = census_data) +
+  geom_sf(aes(fill = cluster), color = "black", lwd = 0.1) +
+  scale_fill_viridis_d(name = "Cluster ID") +  # Automatically assign colors for clusters
+  labs(title = "Census Regions Highlighted by Cluster (grouped by k-means clustering)",
+       fill = "Cluster ID") +
+  theme_minimal() +
+  theme(legend.position = "right", 
+        plot.title = element_text(hjust = 0.5, size = 10, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5, size = 12))
+
 ```
