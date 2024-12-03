@@ -584,7 +584,6 @@ cluster_summary_table <- do.call(rbind, lapply(1:k, function(i) {
 ```
 
 ```{r, results='asis'}
-# Generate the summary table using kable with adjustments for width
 kable(
   cluster_summary_table,
   format = "latex",
@@ -596,11 +595,13 @@ kable(
   booktabs = TRUE,
   escape = FALSE
 ) %>%
-  kable_styling(latex_options = c("hold_position", "striped", "scale_down")) %>%
+  kable_styling(latex_options = c("hold_position", "striped")) %>%
+  landscape() %>%  # Rotate the entire table to fit better on the page
   add_header_above(c(" " = 1, "Cluster-wise Model Summary" = 9)) %>%
   footnote(general = "* p < 0.1; ** p < 0.05; *** p < 0.01", 
            general_title = "Note:", 
            footnote_as_chunk = TRUE, 
            escape = FALSE)
 
+cluster_summary_table
 ```
