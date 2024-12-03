@@ -423,7 +423,7 @@ kable(
            escape = FALSE)
 ```
 
-### Model 1: 
+### Model 1:
 
 ```{r, results='asis'}
 # Model 1: reg_all_vars
@@ -481,4 +481,54 @@ kable(
            general_title = "Note:", 
            footnote_as_chunk = TRUE, 
            escape = FALSE)
+```
+
+## Robustness
+
+We split the data into sub-groups based on
+
+```{r}
+census_data_centroids <- census_data %>%
+  mutate(
+    centroid = st_centroid(geometry),
+    latitude = st_coordinates(centroid)[, 2],
+    longitude = st_coordinates(centroid)[, 1]
+  ) %>%
+  st_set_geometry(NULL)  # Remove geometry for k-means input
+
+# Normalize latitude and longitude for clustering
+census_data_normalized <- census_data_centroids %>%
+  mutate(
+    latitude_scaled = scale(latitude),
+    longitude_scaled = scale(longitude)
+  )
+
+# Set the number of clusters (e.g., k = 4)
+set.seed(123) # For reproducibility
+k <- 4
+kmeans_result <- kmeans(census_data_normalized[, c("latitude_scaled", "longitude_scaled")], centers = k)
+
+# Add cluster assignments to the original data
+census_data$cluster <- kmeans_result$cluster
+
+# Now, merge the cluster assignments into your training data
+training_data <- st_join(training_data, 
+                         census_data %>% select(cluster, geometry), 
+                         left = TRUE)
+
+# Run the model for each cluster
+for (i in 1:k) {
+  subset_data <- training_data %>% filter(cluster == i)
+  
+  model <- lm(crime_density ~ 
+                food_density:low_income + 
+                food_density + 
+                pop_density.x + 
+                v_CA21_452 +
+                low_income, 
+              data = st_set_geometry(subset_data, NULL))
+  
+  cat(paste("\nModel Summary for Cluster", i, ":\n"))
+  print(summary(model)) # Check the results for each cluster
+}
 ```
