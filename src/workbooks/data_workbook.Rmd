@@ -584,21 +584,23 @@ cluster_summary_table <- do.call(rbind, lapply(1:k, function(i) {
 ```
 
 ```{r, results='asis'}
+# Generate the summary table using kable with adjustments for width
 kable(
   cluster_summary_table,
   format = "latex",
-  col.names = c("Cluster", "(Intercept)", "Food Density", "Population Density", 
-                "Average Household Size (v\\_CA21\\_452)", "Low Income", "Food Density: Low Income",
-                "R Squared", "F Statistic", "Observations"),
+  col.names = c("Cluster", "(Intercept)", "Food Density", "Pop Density", 
+                "Avg HH Size", "Low Income", "Food Dens:Low Inc",
+                "R^2", "F Stat", "Obs"),
   caption = "Robustness Check: Model Results for Each Cluster",
   align = "lcccccccc",
   booktabs = TRUE,
   escape = FALSE
 ) %>%
-  kable_styling(latex_options = c("hold_position", "striped")) %>%
+  kable_styling(latex_options = c("hold_position", "striped", "scale_down")) %>%
   add_header_above(c(" " = 1, "Cluster-wise Model Summary" = 9)) %>%
   footnote(general = "* p < 0.1; ** p < 0.05; *** p < 0.01", 
            general_title = "Note:", 
            footnote_as_chunk = TRUE, 
            escape = FALSE)
+
 ```
