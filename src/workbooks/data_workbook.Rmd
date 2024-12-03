@@ -1,6 +1,7 @@
 ---
 output:
-  pdf_document: default
+  pdf_document: 
+    latex_engine: lualatex
   html_document: default
 header-includes:
   - \usepackage{graphicx}
@@ -503,9 +504,10 @@ census_data_normalized <- census_data_centroids %>%
     longitude_scaled = scale(longitude)
   )
 
-# Set the number of clusters (e.g., k = 4)
+
 set.seed(123) # For reproducibility
 k <- 4
+
 kmeans_result <- kmeans(census_data_normalized[, c("latitude_scaled", "longitude_scaled")], centers = k)
 
 # Add cluster assignments to the original data
@@ -515,7 +517,9 @@ census_data$cluster <- kmeans_result$cluster
 training_data <- st_join(training_data, 
                          census_data %>% select(cluster, geometry), 
                          left = TRUE)
+```
 
+```{r}
 # Run the model for each cluster
 for (i in 1:k) {
   subset_data <- training_data %>% filter(cluster == i)
@@ -531,4 +535,70 @@ for (i in 1:k) {
   cat(paste("\nModel Summary for Cluster", i, ":\n"))
   print(summary(model)) # Check the results for each cluster
 }
+```
+
+```{r}
+# Step 1: Prepare a container for the model results
+cluster_summary_table <- do.call(rbind, lapply(1:k, function(i) {
+  subset_data <- training_data %>% filter(cluster == i)
+  
+  # Run the linear model for each cluster
+  model <- lm(crime_density ~ 
+                food_density:low_income + 
+                food_density + 
+                pop_density.x + 
+                v_CA21_452 +
+                low_income, 
+              data = st_set_geometry(subset_data, NULL))
+  
+  model_summary <- summary(model)
+  
+  # Extract coefficients, standard errors, p-values, and significance levels
+  coefs <- coef(model)
+  ses <- sqrt(diag(vcov(model)))
+  p_values <- coef(summary(model))[, 4]
+  
+  # Calculate significance levels for coefficients
+  significance_levels <- ifelse(p_values < 0.01, "***",
+                          ifelse(p_values < 0.05, "**",
+                          ifelse(p_values < 0.1, "*", "")))
+  
+  # Format coefficients with standard errors and significance levels
+  estimates <- sprintf("%.3f (%.3f)%s", coefs, ses, significance_levels)
+
+  # Create a data frame for the cluster summary
+  data.frame(
+    Cluster = paste("Cluster", i),
+    `(Intercept)` = estimates[1],
+    `food_density` = ifelse(length(estimates) >= 2, estimates[2], NA),
+    `pop_density.x` = ifelse(length(estimates) >= 3, estimates[3], NA),
+    `v_CA21_452` = ifelse(length(estimates) >= 4, estimates[4], NA),
+    `low_income` = ifelse(length(estimates) >= 5, estimates[5], NA),
+    `food_density:low_income` = ifelse(length(estimates) >= 6, estimates[6], NA),
+    R_squared = sprintf("%.3f", model_summary$r.squared),
+    F_statistic = ifelse(!is.null(model_summary$fstatistic), sprintf("%.1f", model_summary$fstatistic[1]), NA),
+    Observations = length(model$fitted.values),
+    stringsAsFactors = FALSE
+  )
+}))
+```
+
+```{r, results='asis'}
+kable(
+  cluster_summary_table,
+  format = "latex",
+  col.names = c("Cluster", "(Intercept)", "Food Density", "Population Density", 
+                "Average Household Size (v\\_CA21\\_452)", "Low Income", "Food Density: Low Income",
+                "R Squared", "F Statistic", "Observations"),
+  caption = "Robustness Check: Model Results for Each Cluster",
+  align = "lcccccccc",
+  booktabs = TRUE,
+  escape = FALSE
+) %>%
+  kable_styling(latex_options = c("hold_position", "striped")) %>%
+  add_header_above(c(" " = 1, "Cluster-wise Model Summary" = 9)) %>%
+  footnote(general = "* p < 0.1; ** p < 0.05; *** p < 0.01", 
+           general_title = "Note:", 
+           footnote_as_chunk = TRUE, 
+           escape = FALSE)
 ```
