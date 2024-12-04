@@ -10,7 +10,7 @@ header-includes:
 ```{r setup, include=FALSE}
 lapply(c("tidyverse", "cancensus", "knitr", "readr", "sf", 
          "geojsonsf", "paletteer", "kableExtra", 
-         "broom", "here", "stargazer"), library, character.only = TRUE)
+         "broom", "here", "stargazer", "lmtest", "sandwich"), library, character.only = TRUE)
 ```
 
 ## Census data
@@ -424,64 +424,40 @@ kable(
            escape = FALSE)
 ```
 
+```{r, results='asis'}
+stargazer(reg_all_vars, reg_no_interaction, reg_food_crime_low_income, type = "latex", 
+          covariate.labels = c("Food Program Density", "Population Density", "Household Size", "Low Income", "Food Density:Low Income"),
+          dep.var.labels = c("Crime Density")
+         )
+```
+
 ### Model 1:
 
 ```{r, results='asis'}
 # Model 1: reg_all_vars
-kable(
-  model_1_table,
-  format = "latex",
-  col.names = c("Variable", "Estimate"),
-  caption = "All Variables (Model 1)",
-  align = "lc",
-  booktabs = TRUE,
-  escape = FALSE
-) %>%
-  kable_styling(latex_options = c("hold_position", "striped")) %>%
-  footnote(general = "* p < 0.1; ** p < 0.05; *** p < 0.01", 
-           general_title = "Note:", 
-           footnote_as_chunk = TRUE, 
-           escape = FALSE)
+stargazer(reg_all_vars, type = "latex", 
+          covariate.labels = c("Food Program Density", "Population Density", "Household Size", "Low Income", "Food Density:Low Income"),
+          dep.var.labels = c("Crime Density")
+         )
 ```
 
 ### Model 2:
 
 ```{r, results='asis'}
-# Model 2: reg_no_interaction
-kable(
-  model_2_table,
-  format = "latex",
-  col.names = c("Variable", "Estimate"),
-  caption = "Omitted Interaction Term (Model 2)",
-  align = "lc",
-  booktabs = TRUE,
-  escape = FALSE
-) %>%
-  kable_styling(latex_options = c("hold_position", "striped")) %>%
-  footnote(general = "* p < 0.1; ** p < 0.05; *** p < 0.01", 
-           general_title = "Note:", 
-           footnote_as_chunk = TRUE, 
-           escape = FALSE)
+stargazer(reg_no_interaction, type = "latex", 
+          covariate.labels = c("Food Program Density", "Population Density", "Household Size", "Low Income"),
+          dep.var.labels = c("Crime Density")
+         )
 ```
 
 ### Model 3:
 
 ```{r, results='asis'}
 # Model 3: reg_food_crime_low_income
-kable(
-  model_3_table,
-  format = "latex",
-  col.names = c("Variable", "Estimate"),
-  caption = "Food Density and Low Income (Model 3)",
-  align = "lc",
-  booktabs = TRUE,
-  escape = FALSE
-) %>%
-  kable_styling(latex_options = c("hold_position", "striped")) %>%
-  footnote(general = "* p < 0.1; ** p < 0.05; *** p < 0.01", 
-           general_title = "Note:", 
-           footnote_as_chunk = TRUE, 
-           escape = FALSE)
+stargazer(reg_food_crime_low_income, type = "latex", 
+          covariate.labels = c("Food Program Density", "Low Income"),
+          dep.var.labels = c("Crime Density")
+         )
 ```
 
 ## Robustness
@@ -514,15 +490,17 @@ kmeans_result <- kmeans(census_data_normalized[, c("latitude_scaled", "longitude
 census_data$cluster <- kmeans_result$cluster
 
 # Now, merge the cluster assignments into your training data
-training_data <- st_join(training_data, 
+training_data_clusters <- st_join(training_data, 
                          census_data %>% select(cluster, geometry), 
                          left = TRUE)
 ```
 
 ```{r}
 # Run the model for each cluster
+cluster_models <- list()
+
 for (i in 1:k) {
-  subset_data <- training_data %>% filter(cluster == i)
+  subset_data <- training_data_clusters %>% filter(cluster == i)
   
   model <- lm(crime_density ~ 
                 food_density:low_income + 
@@ -533,77 +511,15 @@ for (i in 1:k) {
               data = st_set_geometry(subset_data, NULL))
   
   cat(paste("\nModel Summary for Cluster", i, ":\n"))
+  cluster_models[[i]] <- model
   print(summary(model)) # Check the results for each cluster
 }
 ```
 
-```{r}
-# Step 1: Prepare a container for the model results
-cluster_summary_table <- do.call(rbind, lapply(1:k, function(i) {
-  subset_data <- training_data %>% filter(cluster == i)
-  
-  # Run the linear model for each cluster
-  model <- lm(crime_density ~ 
-                food_density:low_income + 
-                food_density + 
-                pop_density.x + 
-                v_CA21_452 +
-                low_income, 
-              data = st_set_geometry(subset_data, NULL))
-  
-  model_summary <- summary(model)
-  
-  # Extract coefficients, standard errors, p-values, and significance levels
-  coefs <- coef(model)
-  ses <- sqrt(diag(vcov(model)))
-  p_values <- coef(summary(model))[, 4]
-  
-  # Calculate significance levels for coefficients
-  significance_levels <- ifelse(p_values < 0.01, "***",
-                          ifelse(p_values < 0.05, "**",
-                          ifelse(p_values < 0.1, "*", "")))
-  
-  # Format coefficients with standard errors and significance levels
-  estimates <- sprintf("%.3f (%.3f)%s", coefs, ses, significance_levels)
-
-  # Create a data frame for the cluster summary
-  data.frame(
-    Cluster = paste("Cluster", i),
-    `(Intercept)` = estimates[1],
-    `food_density` = ifelse(length(estimates) >= 2, estimates[2], NA),
-    `pop_density.x` = ifelse(length(estimates) >= 3, estimates[3], NA),
-    `v_CA21_452` = ifelse(length(estimates) >= 4, estimates[4], NA),
-    `low_income` = ifelse(length(estimates) >= 5, estimates[5], NA),
-    `food_density:low_income` = ifelse(length(estimates) >= 6, estimates[6], NA),
-    R_squared = sprintf("%.3f", model_summary$r.squared),
-    F_statistic = ifelse(!is.null(model_summary$fstatistic), sprintf("%.1f", model_summary$fstatistic[1]), NA),
-    Observations = length(model$fitted.values),
-    stringsAsFactors = FALSE
-  )
-}))
-```
-
 ```{r, results='asis'}
-kable(
-  cluster_summary_table %>% select(-Observations),
-  format = "latex",
-  col.names = c("Cluster", "(Intercept)", "Food Density", "Pop Density", 
-                "Avg HH Size", "Low Income", "Food Dens:Low Inc",
-                "R\\^2", "F Stat"),
-  caption = "Robustness Check: Model Results for Each Cluster",
-  align = "lccccccc",
-  booktabs = TRUE,
-  escape = FALSE
-) %>%
-  kable_styling(latex_options = c("hold_position", "striped")) %>%
-  landscape() %>%  # Rotate the entire table to fit better on the page
-  add_header_above(c(" " = 1, "Cluster-wise Model Summary" = 8)) %>%
-  footnote(general = "* p < 0.1; ** p < 0.05; *** p < 0.01", 
-           general_title = "Note:", 
-           footnote_as_chunk = TRUE, 
-           escape = FALSE)
-
-cluster_summary_table
+stargazer(cluster_models, type = "latex", 
+          covariate.labels = c("Food Program Density", "Population Density", "Household Size", "Low Income", "Food Density:Low Income"),
+          dep.var.labels = c("Crime Density"))
 ```
 
 ```{r}
@@ -621,4 +537,150 @@ ggplot(data = census_data) +
         plot.title = element_text(hjust = 0.5, size = 10, face = "bold"),
         plot.subtitle = element_text(hjust = 0.5, size = 12))
 
+```
+
+### Heteroskedascity
+
+```{r}
+# Assuming you have a model named 'reg_all_vars' and a dataset named 'training_data'
+
+# Add residuals to the dataset
+training_data_res <- training_data %>%
+  mutate(residuals = resid(reg_all_vars))
+
+# Plot residuals against a variable (e.g., population density) to visually check for heteroskedasticity
+ggplot(data = training_data_res, aes(x = pop_density.x, y = residuals)) +
+  geom_point(size = 0.2, alpha =0.5, color="blue") +
+  labs(x = "Population Density", y = "Residuals") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+```{r}
+# Extract residuals and calculate squared residuals
+training_data_res <- training_data_res %>%
+  mutate(residuals_squared = residuals^2)
+
+# Auxiliary regression: squared residuals on independent variables, their squares, and interactions
+white_model <- lm(residuals_squared ~ 
+                    food_density + pop_density.x + v_CA21_452 + low_income +
+                    I(food_density^2) + I(pop_density.x^2) + I(v_CA21_452^2) + I(low_income^2) +
+                    food_density:pop_density.x + food_density:v_CA21_452 + food_density:low_income +
+                    pop_density.x:v_CA21_452 + pop_density.x:low_income +
+                    v_CA21_452:low_income, 
+                  data = training_data_res)
+
+# Calculate the test statistic
+n <- nrow(training_data)
+R_squared <- summary(white_model)$r.squared
+white_test_statistic <- n * R_squared
+
+# Calculate p-value for the test statistic (chi-square with degrees of freedom equal to number of predictors in the auxiliary model)
+p_value <- pchisq(white_test_statistic, df = length(coef(white_model)) - 1, lower.tail = FALSE)
+
+cat("White's Test Statistic:", white_test_statistic, "\n")
+cat("p-value:", p_value, "\n")
+
+```
+
+```{r}
+# Auxiliary regression for Breusch-Pagan Test: regress squared residuals on original predictors
+bp_model <- lm(residuals_squared ~ 
+                 food_density + pop_density.x + v_CA21_452 + low_income, 
+               data = training_data_res, na.action = na.omit)
+
+# Calculate the test statistic for Breusch-Pagan test
+R_squared_bp <- summary(bp_model)$r.squared
+bp_test_statistic <- n * R_squared_bp
+
+# Calculate p-value for Breusch-Pagan test statistic (chi-square)
+p_value_bp <- pchisq(bp_test_statistic, df = length(coef(bp_model)) - 1, lower.tail = FALSE)
+
+cat("Breusch-Pagan Test Statistic:", bp_test_statistic, "\n")
+cat("Breusch-Pagan Test p-value:", p_value_bp, "\n")
+```
+
+```{r, results='asis'}
+# Calculate robust standard errors and re-run the model with robust covariance matrix
+robust_se <- coeftest(reg_all_vars, vcov = vcovHC(reg_all_vars, type = "HC"))
+
+# Print the results with robust standard errors
+
+stargazer(robust_se, type = "latex", 
+          covariate.labels = c("Food Program Density", "Population Density", "Household Size", "Low Income", "Food Density:Low Income"),
+          dep.var.labels = c("Crime Density")
+         )
+```
+
+## Summary statistics
+
+data_for_model \<- st_set_geometry(training_data, NULL)
+
+model_vars \<- all.vars(formula(reg_all_vars))
+
+subset_data \<- data_for_model %\>% select(all_of(model_vars))
+
+readable_names \<- c(
+
+"food_density" = "Food Program Density",
+
+"pop_density.x" = "Population Density",
+
+"v_CA21_452" = "Average Household Size",
+
+"low_income" = "Low Income",
+
+"crime_density" = "Crime Density"
+
+)
+
+subset_data \<- subset_data %\>% rename(any_of(readable_names))
+
+summary_statistics \<- subset_data %\>%
+
+summarise(across(everything(), list(
+
+mean = \~mean(. , na.rm = TRUE),
+
+sd = \~sd(. , na.rm = TRUE),
+
+min = \~min(. , na.rm = TRUE),
+
+max = \~max(. , na.rm = TRUE),
+
+median = \~median(. , na.rm = TRUE)
+
+))) %\>%
+
+pivot_longer(cols = everything(), names_to = "variable_stat", values_to = "value") %\>%
+
+separate(variable_stat, into = c("variable", "stat"), sep = "\_", extra = "drop") %\>%
+
+pivot_wider(names_from = stat, values_from = value, values_fn = list(value = \~first(.)))
+
+```{r}
+summary_data <- st_set_geometry(training_data, NULL) %>%
+  select(
+    food_density, 
+    low_income, 
+    pop_density.x, 
+    v_CA21_452
+  )
+
+
+# Create summary table
+summary_table <- data.frame(
+  Mean = sapply(summary_data, mean, na.rm = TRUE),
+  SD = sapply(summary_data, sd, na.rm = TRUE),
+  Max = sapply(summary_data, max, na.rm = TRUE), 
+  Median = sapply(summary_data, median, na.rm = TRUE)
+)
+
+# Round numeric columns to 4 decimal places
+summary_table <- round(summary_table, 4)
+
+
+# Print the summary table
+print(summary_table)
 ```
