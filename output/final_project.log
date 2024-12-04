@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2024.12.3)  3 DEC 2024 20:49
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2024.12.3)  3 DEC 2024 21:38
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -485,7 +485,11 @@ File: t1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 File: l3backend-pdftex.def 2024-05-08 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count322
 \l__pdf_internal_box=\box74
-) (./final_project.aux)
+) (./final_project.aux
+
+LaTeX Warning: Label `' multiply defined.
+
+)
 \openout1 = `final_project.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 90.
@@ -622,38 +626,33 @@ File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 File: mt-msb.cfg 2005/06/01 v1.0 microtype config. file: AMS symbols (b) (RS)
 )
 LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 1
-49.
+50.
 (c:/texlive/2024/texmf-dist/tex/latex/lm/t1lmtt.fd
 File: t1lmtt.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
+LaTeX Font Info:    Font shape `T1/lmtt/bx/n' in size <10> not available
+(Font)              Font shape `T1/lmtt/b/n' tried instead on input line 150.
+
 
 [1
 
 {c:/texlive/2024/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{c:/texlive/2024/
 texmf-dist/fonts/enc/dvips/lm/lm-ec.enc}]
-LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <10> on input line 231.
-LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <7> on input line 231.
-LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <5> on input line 231.
-
-LaTeX Warning: `!h' float specifier changed to `!ht'.
-
-
 
 [2]
-Overfull \hbox (33.87077pt too wide) in paragraph at lines 322--358
- [][] 
- []
-
+LaTeX Font Info:    External font `lmex10' loaded for size
+(Font)              <10> on input line 245.
+LaTeX Font Info:    External font `lmex10' loaded for size
+(Font)              <7> on input line 245.
+LaTeX Font Info:    External font `lmex10' loaded for size
+(Font)              <5> on input line 245.
 
 
 [3{c:/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-rm.enc}{c:/texlive/2024/tex
 mf-dist/fonts/enc/dvips/lm/lm-mathit.enc}{c:/texlive/2024/texmf-dist/fonts/enc/
 dvips/lm/lm-mathsy.enc}]
 LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 3
-76.
+71.
 (c:/texlive/2024/texmf-dist/tex/latex/lm/ts1lmr.fd
 File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
@@ -664,20 +663,25 @@ File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 
 [6]
 
-[7] (./final_project.aux)
+[7]
+
+[8] (./final_project.aux)
  ***********
 LaTeX2e <2024-11-01> patch level 1
 L3 programming layer <2024-11-02>
  ***********
+
+LaTeX Warning: There were multiply-defined labels.
+
  ) 
 Here is how much of TeX's memory you used:
- 15306 strings out of 473330
- 237875 string characters out of 5723878
- 695329 words of memory out of 5000000
- 37989 multiletter control sequences out of 15000+600000
- 621475 words of font info for 155 fonts, out of 8000000 for 9000
+ 15311 strings out of 473330
+ 237977 string characters out of 5723878
+ 695502 words of memory out of 5000000
+ 37994 multiletter control sequences out of 15000+600000
+ 621402 words of font info for 153 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 83i,11n,93p,1010b,530s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 83i,12n,93p,1010b,536s stack positions out of 10000i,1000n,20000p,200000b,200000s
 <c:/texlive/2024/texmf-dist/fonts/type1/public/lm/lmbx10.pfb><c:/texlive/2024
 /texmf-dist/fonts/type1/public/lm/lmbx12.pfb><c:/texlive/2024/texmf-dist/fonts/
 type1/public/lm/lmmi10.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/lm/lm
@@ -687,11 +691,11 @@ nts/type1/public/lm/lmr17.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/lm
 /lmr7.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/lm/lmri10.pfb><c:/texl
 ive/2024/texmf-dist/fonts/type1/public/lm/lmsy10.pfb><c:/texlive/2024/texmf-dis
 t/fonts/type1/public/lm/lmsy7.pfb><c:/texlive/2024/texmf-dist/fonts/type1/publi
-c/lm/lmtt10.pfb>
-Output written on final_project.pdf (7 pages, 256100 bytes).
+c/lm/lmtk10.pfb>
+Output written on final_project.pdf (8 pages, 265252 bytes).
 PDF statistics:
- 200 PDF objects out of 1000 (max. 8388607)
- 163 compressed objects within 2 object streams
- 28 named destinations out of 1000 (max. 500000)
- 34961 words of extra memory for PDF output out of 35830 (max. 10000000)
+ 212 PDF objects out of 1000 (max. 8388607)
+ 174 compressed objects within 2 object streams
+ 32 named destinations out of 1000 (max. 500000)
+ 34977 words of extra memory for PDF output out of 35830 (max. 10000000)
 
