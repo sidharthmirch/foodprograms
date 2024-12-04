@@ -1,6 +1,5 @@
 ---
-title: "Exploring the influence of low-cost food programs on crime density \\newline
-  ECON 326 - The University of British Columbia"
+title: "Exploring the influence of low-cost food programs on crime density \\newline The University of British Columbia \\newline ECON 326"
 author: "Anishka Fernandopulle, Radhika Iyer, Sidharth Mirchandani, Hajra Ojha"
 output:
   pdf_document: 
@@ -370,6 +369,33 @@ summary_table <- data.frame(
 # Round numeric columns to 3 decimal places
 summary_table <- round(summary_table, 3)
 
+# https://stackoverflow.com/a/54022279
+resizebox.stargazer <- function(..., tab.width = "!", tab.height = "!", tab.title = "") {
+  # Load the stringr package for string manipulation
+  require(stringr)
+
+  # Capture the output of stargazer() as a vector of strings
+  res <- capture.output(
+    stargazer::stargazer(..., header = FALSE, title = tab.title)
+  )
+
+  # Render the arguments
+  tab.width <- tab.width
+  tab.height <- tab.height
+
+  # Add "}" before "\end{table}" to properly close \resizebox
+  res <- append(res, "}", after = length(res) - 1)
+
+  # Insert the \resizebox command before \begin{tabular}
+  res <- c(
+    res[1:(str_which(res, "^\\\\begin\\{tabular\\}") - 1)],
+    paste0("\\resizebox{", tab.width, "}{", tab.height, "}{%"),
+    res[str_which(res, "^\\\\begin\\{tabular\\}") : length(res)]
+  )
+
+  # Print the modified LaTeX code
+  cat(res, sep = "\n")
+}
 
 ```
 
@@ -383,35 +409,43 @@ This gap in the literature is especially pressing as food insecurity is on the r
 
 This paper seeks to explore the relationship between the density of free and low-cost food programs and the density of property and violent crime in Vancouver’s low-income neighborhoods by answering the question, **how does the density of free and low-cost food programs influence property and violent crime density in low-income communities in Vancouver?** The findings have important implications for policymakers and urban planners, offering evidence-based insights to optimize the design and implementation of food assistance programs to enhance their benefits while minimizing potential externalities.
 
-# Data Description
+# Data
 
-## Variables
+## Canadian Census, 2021
 
-**Canadian Census, 2021**\
-We used the 2021 Canadian census data set to obtain the Population Density, Household Size, and Low-Income Density of neighborhoods in Vancouver. We aimed to establish a relationship between these factors and the crime rate within those specific communities. We considered the following variables: 
-- Population, 2021: `v_CA21_1` \
-This provided us with a sample population to aid us in answering our research question. This numeric variable gave us quantitative values for the number of people within our sample along with population data specific to our chosen year. This enabled us to make clearer comparisons. 
-- Population density per square kilometer: `v_CA21_6` \
-This allowed us to separate the population into specific locations to see the density within each neighborhood and provide context behind the crime rates in the area. It also helped us specifically pinpoint the locations of low-cost food programs. The unit for this variable represents the number of people.
-- Average household size: `v_CA21_452` \
-This variable consists of quantitative data about the household composition which influenced the crime rate. This provided a brief estimate of income brackets within the neighborhood to pinpoint which locations consist of low-income earners who might need low-income food plans. This indicated that neighborhoods with a higher average number of people per private household tend to have lower crime density. 
-- Prevalence of low income based on the Low-income measure, after tax (LIM-AT)(%): `v_CA21_1040` \
-This variable provided an indication of household financial vulnerability that helped examine a relationship between low income, access to food, and the crime rate. The data is represented in the form of percentages in a given area and is a relative measure in relation to median income. 
-- Prevalence of low income based on the Low-income based on the Low-income cut-offs, after tax (LICO-AT)(%): `v_CA21_1085` \
-This variable is a key indicator of financial strain that highlights the need for food programs as it takes into account living costs. It allowed us to target areas where food insecurity may be high and food programs would be most likely needed. This is an absolute measure where the units are given in the form of percentages.
-- Income statistics for private households: `v_CA21_905` \
-This variable helped identify low-income households to better understand the relationship between crime rates and low-income households. It provided information about income/earning levels.
+We used the 2021 Canadian census data set to obtain the Population Density, Household Size, and Low-Income Density of neighborhoods in Vancouver. We aimed to establish a relationship between these factors and the crime rate within those specific communities. We considered the following variables:
 
-**Free and Low-Cost Food Programs, Vancouver**\
-From the Free and Low-Cost Food Programs data set, we considered the following variables: 
-- Neighborhood the facility is located: `local_areas` \
-This displayed the geographical distribution of food programs that can be geographically matched with crime rate locations to study the relationship between the two. 
-- Latitude and Longitude of facility: `geom` \
-This provided a more specific location of each neighborhood we were studying, increasing the accuracy of our findings. This provides more detailed data to analyze the proximity to crime incidents. We analyzed the proximity of crime occurrence to food program locations. It is given in terms of coordinates. 
-- Is the facility operational: `program_status` \
+**Population, 2021: `v_CA21_1`**\
+This provided us with a sample population to aid us in answering our research question. This numeric variable gave us quantitative values for the number of people within our sample along with population data specific to our chosen year. This enabled us to make clearer comparisons.
+
+**Population density per square kilometer: `v_CA21_6`**\
+    This allowed us to separate the population into specific locations to see the density within each neighborhood and provide context behind the crime rates in the area. It also helped us specifically pinpoint the locations of low-cost food programs. The unit for this variable represents the number of people.
+
+**Average household size: `v_CA21_452`**\
+    This variable consists of quantitative data about the household composition which influenced the crime rate. This provided a brief estimate of income brackets within the neighborhood to pinpoint which locations consist of low-income earners who might need low-income food plans. This indicated that neighborhoods with a higher average number of people per private household tend to have lower crime density.
+
+**Prevalence of low income based on the Low-income measure, after tax (LIM-AT)(%): `v_CA21_1040`**\
+    This variable provided an indication of household financial vulnerability that helped examine a relationship between low income, access to food, and the crime rate. The data is represented in the form of percentages in a given area and is a relative measure in relation to median income.
+
+**Prevalence of low income based on the Low-income based on the Low-income cut-offs, after tax (LICO-AT)(%): `v_CA21_1085`**\
+    This variable is a key indicator of financial strain that highlights the need for food programs as it takes into account living costs. It allowed us to target areas where food insecurity may be high and food programs would be most likely needed. This is an absolute measure where the units are given in the form of percentages. 
+
+**Income statistics for private households: `v_CA21_905`**\
+    This variable helped identify low-income households to better understand the relationship between crime rates and low-income households. It provided information about income/earning levels.
+
+## Free and Low-Cost Food Programs, Vancouver
+From the Free and Low-Cost Food Programs data set, we considered the following variables:
+
+**Neighborhood the facility is located: `local_areas`**\
+This displayed the geographical distribution of food programs that can be geographically matched with crime rate locations to study the relationship between the two.
+
+**Latitude and Longitude of facility: `geom`**\
+This provided a more specific location of each neighborhood we were studying, increasing the accuracy of our findings. This provides more detailed data to analyze the proximity to crime incidents. We analyzed the proximity of crime occurrence to food program locations. It is given in terms of coordinates.
+
+**Is the facility operational: `program_status`**\
 This determined the availability of food resources to understand if the issue of food security is dealt with. This allowed us to isolate the effect. Within this variable data is either ‘open’ or ‘closed’ allowing us to disregard ‘closed’ food programs as they do not contribute to solving food insecurity. The data set contains the location of free/low-cost food programs, food banks, grocery hampers, low-cost groceries, or grocery vouchers in Vancouver. These are valuable specifications of the low-food programs to better understand the reason for their location.
 
-**Vancouver Police Department Crime Data, 2021**\
+## Vancouver Police Department Crime Data, 2021
 For the VPD Crime data set, we calculated the total number of crimes committed in 2021. We matched the location specifications with food program locations to better study their relationship through spatial analysis. We transformed the location data stored in the X and Y columns to match Census Dissemination Areas. To do this, we converted from the projection format of the crime data to that of the census. We then calculated the density of crime within each dissemination area. By converting the location data to be projected the same way, we were able to make comparisons across all three of our data-sets.
 
 ## Summary Statistics
@@ -441,9 +475,7 @@ $$
 
 In this regression equation, the dependent variable $\text{Crime Density}_i$ represents the density of crimes per area for each census dissemination area. Our key parameter of interest is $\beta_1$ which is the interaction term that allows us to isolate the effect of food programs within low-income neighbourhoods only, by multiplying $\text{Food Program Density}_i$ which measures the density of free or low-cost food programs in the area by the dummy variable $\text{Low Income}_i$ which takes on the value 0 or 1 depending on whether we classify it as a low-income neighbourhood. The covariates are $\text{Food Program Density}_i$, $\text{Population Density}_i$, $\text{Household Size}_i$, and $\text{Low Income}_i$, which are variables that may influence crime in a neighbourhood on their own. Including these covariates allows us to isolate the effect of food program density on crime density in low income areas by controlling these variables. The parameter $\beta_0$ is the intercept, which represents the expected value of the crime density when the independent variables are equal to zero. The other parameters, $\beta_i$, where $i \neq 0$, represents the change in the crime density for a one-unit increase in each variable, holding the other variables constant. This model assumes that the factors influence crime density independently and that the relationships are linear.
 
-In this regression equation, the dependent variable Crime Densityi represents the density of crimes per area for each census dissemination area. Our key parameter of interest is 1 which is the interaction term that allows us to isolate the effect of food programs within low-income neighbourhoods only, by multiplying Food Program Densityi which measures the density of free or low-cost food programs in the area by the dummy variable Low Incomei which takes on the value 0 or 1 depending on whether we classify it as a low-income neighbourhood. The covariates are $\text{Food Program Density}_i$, $\text{Population Density}_i$, $\text{Household Size}_i$, and $\text{Low Income}_i$, which are variables that may influence crime in a neighbourhood on their own. Including these covariates allows us to isolate the effect of food program density on crime density in low-income areas by controlling these variables. The parameter 0 is the intercept, which represents the expected value of the crime density when the independent variables are equal to zero. The other parameters, i, where i0, represents the change in the crime density for a one-unit increase in each variable, holding the other variables constant. This model assumes that the factors influence crime density independently and that the relationships are linear.
-
-Our first specification was such that: $$
+Our first specification is such that: $$
 \begin{aligned}
 (\text{Crime Density})_i &= \beta_0 + \beta_2(\text{Food Program Density})_i + \beta_3(\text{Population Density})_i + \\
 &\quad\beta_4(\text{Household Size})_i + \beta_5(\text{Low Income})_i + \epsilon_i.
@@ -458,15 +490,19 @@ $$
 
 ## Table of Results
 
-Here we see the results for our model*NOTE THIS TEXT IS HERE SO THE TABLE RENDERS AFTER THE HEADER... soo maybe write something nice as fluff here:D
+Here we see the results for our model\*NOTE THIS TEXT IS HERE SO THE TABLE RENDERS AFTER THE HEADER... soo maybe write something nice as fluff here:D
 
 ```{r, results = 'asis'}
 ## stargazer all 3 models
-table_output <- capture.output(stargazer(reg_all_vars, reg_no_interaction, reg_food_crime_low_income, type = "latex", header=FALSE, title= "Models for Crime Density",
-          covariate.labels = c("Food Program Density", "Population Density", "Household Size", "Low Income", "Food Density:Low Income"),
-          dep.var.labels = c("Crime Density")))
+# stargazer(reg_all_vars, reg_no_interaction, reg_food_crime_low_income, type = "latex", header=FALSE, title= "Models for Crime Density",
+#           covariate.labels = c("Food Program Density", "Population Density", "Household Size", "Low Income", "Food Density:Low Income"),
+#           dep.var.labels = c("Crime Density"))
 
-cat(table_output, sep = "\n")
+models <- list(reg_all_vars, reg_no_interaction, reg_food_crime_low_income)
+
+resizebox.stargazer(models, tab.width="0.9\\textwidth", tab.title="Models for Crime Density",
+                    covariate.labels = c("Food Program Density", "Population Density", "Household Size", "Low Income", "Food Density:Low Income"),
+                    dep.var.labels = c("Crime Density"))
 ```
 
 # Discussion
@@ -486,12 +522,11 @@ Model (1) includes all variables, including the controls and the interaction ter
     The coefficient for the interaction term is **9.460**, which implies a positive adjustment to the effect of food program density on crime density in low-income areas. This result is statistically significant. This suggests that the combined impact of increased food program density and being a low-income neighborhood significantly increases crime density.
 
 -   **Low-Income Neighborhoods (low_income)**:\
-   The coefficient is **244.697**, which is large and statistically significant. This shows that being a low-income neighborhood is strongly associated with increased crime density, regardless of food program density.
-
+    The coefficient is **244.697**, which is large and statistically significant. This shows that being a low-income neighborhood is strongly associated with increased crime density, regardless of food program density.
 
 -   **Population Density (population_density)**:\
     A significant positive coefficient **(0.043)** indicates that as population density increases (more people per square kilometer), crime density also rises.
-    
+
 -   **Household Size (household_size)**:\
     The coefficient is **-517.756**, which is statistically significant. This indicates that neighborhoods with a higher average number of people per private household tend to have lower crime density.
 
@@ -505,18 +540,14 @@ In Model (2), the interaction term is removed, allowing us to focus on the indep
 -   **Food Program Density (food_density)**:\
     The coefficient increases to **8.054** and becomes highly significant. This suggests a positive association between food program density and crime density. This result is statistically significant, whereas it was insignificant for Model (1), suggesting that the relationship is positive, not negative.
 
-
 -   **Low-Income Neighborhoods (low_income)**:\
     The coefficient remains large and highly significant **(252.689)**, indicating that being a low-income neighborhood causes higher crime density.
 
-
 -   **Population Density (population_density) and Household Size (household_size)**:\
     Both variables remain significant and retain their direction. Higher population density is associated with higher crime density, while a larger household size is correlated with lower crime density.
-    
-    
+
 -   $R^2$ = **0.313**:\
     The R-squared value for model 3 is similar to 2, suggesting that it explains a similar proportion of the variation in crime density. This implies more variables are needed to explore the relationship between food program density and crime density.
-
 
 ### Model Focused on Food Density, Crime, and Low Income
 
@@ -530,7 +561,7 @@ Model (3) isolates food program density (food_density) and low-income neighborho
 
 -   $R^2$ = **0.067**:\
     This reduced model explains only 6.7% of the variance in crime density, much less than the previous models, highlighting the importance of the omitted variables.
-    
+
 This simplified model highlights the primary relationships but does not account for control variables like population density or household size which may also affect the crime density in different neighbourhoods, causing it to have a very low R-squared of 0.067 which implies that the model is almost non-explanatory. This suggests it explains nearly nothing about the variation in crime density.
 
 ## Key Insights from All Models
@@ -539,35 +570,30 @@ This simplified model highlights the primary relationships but does not account 
 
 **Food Program Density has a positive relationship with Crime Density**: The positive relationship is significant in models (2) and (3), suggesting that increased food program density increases crime density. This correlation likely reflects the placement of food programs in high-crime areas rather than a causal impact on crime.
 
-**Demographic Variables**:
-  - Population density is positively associated with crime density, reflecting the greater likelihood of criminal activity in busy areas.
-  - Household Size is negatively associated with crime density, suggesting that larger household sizes may provide greater social support in the form of familial or household relationships that cause a lower likelihood of criminal behavior.
-  
+**Demographic Variables**: - Population density is positively associated with crime density, reflecting the greater likelihood of criminal activity in busy areas. - Household Size is negatively associated with crime density, suggesting that larger household sizes may provide greater social support in the form of familial or household relationships that cause a lower likelihood of criminal behavior.
+
 Interaction Effects are Significant: The interaction between food program density and low-income status significantly influences crime density, indicating that being a low income neighborhood causes food program density to have an even stronger positive correlation with crime density.
 
 ## Drawbacks and Limitations
 
 **Endogeneity**:\
-    The placement of food programs is likely endogenous to crime rates, as programs are often located in areas with higher need. This reverse causality could bias the results, making it difficult to interpret the direction of the relationship.
+The placement of food programs is likely endogenous to crime rates, as programs are often located in areas with higher need. This reverse causality could bias the results, making it difficult to interpret the direction of the relationship.
 
 **Omitted Variable Bias**:\
-    Important variables, such as law enforcement presence, housing quality, and social capital, are not included in the analysis. This is perhaps why the R-squared values are low in all 3 models.
+Important variables, such as law enforcement presence, housing quality, and social capital, are not included in the analysis. This is perhaps why the R-squared values are low in all 3 models.
 
 **Areas of crime**:\
-    Although crimes occur in a particular area, it does not mean they are committed by people residing in that area. Therefore, the control variables including population density, low income, and household size may not be measuring the living situations of the actual crime perpetrators.
+Although crimes occur in a particular area, it does not mean they are committed by people residing in that area. Therefore, the control variables including population density, low income, and household size may not be measuring the living situations of the actual crime perpetrators.
 
-The results show that food program density is positively associated with crime density, particularly in low-income neighborhoods.  We will ensure our results are robust by using model (1) on subgroups of Vancouver neighborhoods, ensuring we reach the same conclusions. However, due to potentialendogeneity, this positive relationship is likely not causal as food programs may be strategically placed in areas that have high crime density. 
-To ensure that the estimates of the regression coefficients are unbiased we will perform White’s test as a specification check for heteroskedasticity.
+The results show that food program density is positively associated with crime density, particularly in low-income neighborhoods. We will ensure our results are robust by using model (1) on subgroups of Vancouver neighborhoods, ensuring we reach the same conclusions. However, due to potentialendogeneity, this positive relationship is likely not causal as food programs may be strategically placed in areas that have high crime density. To ensure that the estimates of the regression coefficients are unbiased we will perform White’s test as a specification check for heteroskedasticity.
 
 ## Heteroskedasticity
 
 To check our model for heteroskedasticity, we conducted the Breusch-Pagan Test and the White’s Test. For the Breusch-Pagan test, the p-value we obtained was 2.930512e-93 which is very close to 0, and smaller than any conventional significance level, we reject the null hypothesis of homoskedasticity. We got a similar result for the White’s Test. The p-value we obtained was 2.15e-128, which similarly suggests heteroskedasticity. Therefore, there is strong evidence of heteroskedasticity in our model which implied that the variance of error varies across the independent variables. This violates the assumption of homoskedasticity for Ordinary Least Squares (OLS) regression. Therefore, the standard error of our estimates is biased which may lead to misleading conclusions. Given more time and resources, we would use a different estimator due to the presence of heteroskedasticity which makes OLS no longer the Best Linear Unbiased Estimator.
 
-
 ## Robustness
 
-To check the robustness of our results, we used the regression equation from Model (1) on subgroups of areas. We clustered based on the census dissemination areas, using k-means to form four subgroups. Our results show that the relationship between population density and crime density, and average household size and crime density, amongst the clusters are consistent with our results. However,  the relationships between other variables change across the clusters, being inconsistent with our results. Therefore, we cannot conclude that our conclusions are robust.
-
+To check the robustness of our results, we used the regression equation from Model (1) on subgroups of areas. The results for these subgroups can be seen in Table 3, which can be found in the Appendix. We clustered based on the census dissemination areas, using k-means to form four subgroups. Our results show that the relationship between population density and crime density, and average household size and crime density, amongst the clusters are consistent with our results. However, the relationships between other variables change across the clusters, being inconsistent with our results. Therefore, we cannot conclude that our conclusions are robust.
 
 # Conclusion
 
@@ -575,18 +601,35 @@ The analysis provides evidence that food program density is positively associate
 
 # Works Cited
 
-Greater Vancouver Food Bank. (2023). Annual report on food insecurity in Vancouver. Greater Vancouver Food Bank.
+Hannon, L., & DeFina, R. (2005). Violent crime in African American and white neighborhoods: Is poverty’s detrimental effect race-specific?\* Social Problems, 52\*(4), 567–585. \
+<https://doi.org/10.1525/sp.2005.52.4.567>
 
-Hannon, L., & DeFina, R. (2005). Violent crime in African American and white neighborhoods: Is poverty’s detrimental effect race-specific? Social Problems, 52(4), 567–585.<https://doi.org/10.1525/sp.2005.52.4.567>
+Jackson, D. B., Newsome, J., Vaughn, M. G., & Johnson, K. R. (2018). Considering the role of food insecurity in low self-control and early delinquency. *Journal of Criminal Justice, 56*, 127–139. \
+<https://doi.org/10.1016/j.jcrimjus.2017.07.002>
 
-Jackson, D. B., Newsome, J., Vaughn, M. G., & Johnson, K. R. (2018). Considering the role of food insecurity in low self-control and early delinquency. Journal of Criminal Justice, 56, 127–139.<https://doi.org/10.1016/j.jcrimjus.2017.07.002>
+Kling, J. R., Ludwig, J., & Katz, L. F. (2005). Neighborhood effects on crime for female and male youth: Evidence from a randomized housing voucher experiment. *Quarterly Journal of Economics*, *120*(1), 87–130. \
+<https://doi.org/10.1162/0033553053327470>
 
-Kling, J. R., Ludwig, J., & Katz, L. F. (2005). Neighborhood effects on crime for female and male youth: Evidence from a randomized housing voucher experiment. Quarterly Journal of Economics, 120(1), 87–130.<https://doi.org/10.1162/0033553053327470>
+“Census Data 2021.” CensusMapper, 2021. \
+<https://censusmapper.ca/api/CA21>. Variables: Population Density, Private Households, Low-Income Density.
 
-“Census Data 2021.” CensusMapper, 2021.<https://censusmapper.ca/api/CA21>. Variables: Population Density, Private Households, Low-Income Density.
+“Free and Low Cost Food Programs.” Open Data Portal, City of Vancouver, 2021.\
+<https://opendata.vancouver.ca/explore/dataset/free-and-low-cost-food-programs/information/>. Variables: Food Program Density.
 
-“Free and Low Cost Food Programs.” Open Data Portal, City of Vancouver, 2021.<https://opendata.vancouver.ca/explore/dataset/free-and-low-cost-food-programs/information/>. Variables: Food Program Density.
+“GeoDASH Crime Map.” VPD Open Crime Dataset. Vancouver Police Department.\ 
+<https://geodash.vpd.ca/opendata/>. Variables: Crime Density.
 
-“GeoDASH Crime Map.” VPD Open Crime Dataset. Vancouver Police Department.<https://geodash.vpd.ca/opendata/>. Variables: Crime Density.
+Greater Vancouver Food Bank. (2023). *Annual report on food insecurity in Vancouver.* Greater Vancouver Food Bank.
 
-# Attributions
+# Appendix
+
+```{r, results='asis'}
+
+resizebox.stargazer(cluster_models, tab.width="0.9\\textwidth", tab.title="Models based on k-means clustering subgroups",
+                    covariate.labels = c("Food Program Density", "Population Density", "Household Size", "Low Income", "Food Density:Low Income"),
+                    dep.var.labels = c("Crime Density"))
+
+#stargazer(cluster_models, type = "latex", header=FALSE, title="Models based on k-means clustering subgroups",
+#          covariate.labels = c("Food Program Density", "Population Density", "Household Size", "Low Income", "Food Density:Low Income"),
+#          dep.var.labels = c("Crime Density"))
+```
