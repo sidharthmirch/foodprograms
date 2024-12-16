@@ -1,4 +1,4 @@
-# ECON xxx Research Project
+# ECON 326 Research Project
 At a time when Vancouver is experiencing issues in food security, it is important to understand the effects
 of food programs on the community. Our research project will explore the relationship between the
 presence of free and low-cost food programs and crime rates. Specifically, we will be answering the
